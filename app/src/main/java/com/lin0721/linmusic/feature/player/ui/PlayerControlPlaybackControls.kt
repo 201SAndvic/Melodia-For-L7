@@ -46,13 +46,14 @@ fun PlaybackControls(
     isRoaming: Boolean = false,
     onDisableRoaming: () -> Unit = {},
     isIntelligence: Boolean = false,
-    onDisableIntelligence: () -> Unit = {}
+    onDisableIntelligence: () -> Unit = {},
+    compact: Boolean = false
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MelodiaSpacing.lg)
-            .padding(top = MelodiaSpacing.xs),
+            .padding(top = if (compact) 0.dp else MelodiaSpacing.xs),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -66,6 +67,8 @@ fun PlaybackControls(
                     onToggleShuffle()
                 }
             },
+            // Match portrait: include the icon vector's own blank margins, not
+            // just the 6dp difference between the touch box and icon box.
             modifier = Modifier.offset(x = (-10).dp)
         ) {
             Icon(
@@ -74,18 +77,18 @@ fun PlaybackControls(
                     isIntelligence -> Icons.Rounded.AutoAwesome
                     else -> Icons.Default.Shuffle
                 },
-                contentDescription = null,
+                contentDescription = "随机播放",
                 tint = if (isRoaming || isIntelligence || playMode == PlayMode.SHUFFLE) Color.White else TextGray,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(if (compact) 28.dp else 28.dp)
             )
         }
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(28.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 28.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MelodiaIconButton(onClick = onPlayPrevious, style = MelodiaPress.Transport) {
-                Icon(Icons.Rounded.SkipPrevious, contentDescription = null, tint = Color.White, modifier = Modifier.size(46.dp))
+                Icon(Icons.Rounded.SkipPrevious, contentDescription = null, tint = Color.White, modifier = Modifier.size(if (compact) 40.dp else 46.dp))
             }
             val playInteraction = remember { MutableInteractionSource() }
             val isPressed by playInteraction.collectIsPressedAsState()
@@ -116,7 +119,7 @@ fun PlaybackControls(
                 shape = CircleShape,
                 interactionSource = playInteraction,
                 modifier = Modifier
-                    .size(72.dp)
+                    .size(if (compact) 64.dp else 72.dp)
                     .graphicsLayer {
                         alpha = buttonAlpha.value
                     }
@@ -125,11 +128,11 @@ fun PlaybackControls(
                     if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = Color.Black,
-                    modifier = Modifier.size(42.dp)
+                    modifier = Modifier.size(if (compact) 38.dp else 42.dp)
                 )
             }
             MelodiaIconButton(onClick = onPlayNext, style = MelodiaPress.Transport) {
-                Icon(Icons.Rounded.SkipNext, contentDescription = null, tint = Color.White, modifier = Modifier.size(46.dp))
+                Icon(Icons.Rounded.SkipNext, contentDescription = null, tint = Color.White, modifier = Modifier.size(if (compact) 40.dp else 46.dp))
             }
         }
 
@@ -139,9 +142,9 @@ fun PlaybackControls(
         ) {
             Icon(
                 if (playMode == PlayMode.SINGLE_LOOP) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                contentDescription = null,
+                contentDescription = "循环播放",
                 tint = if (playMode == PlayMode.SINGLE_LOOP) Color.White else TextGray,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(if (compact) 28.dp else 28.dp)
             )
         }
     }

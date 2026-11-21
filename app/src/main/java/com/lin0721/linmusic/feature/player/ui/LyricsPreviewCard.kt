@@ -20,7 +20,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -35,8 +34,14 @@ import com.lin0721.linmusic.core.ui.theme.lighten
 import com.lin0721.linmusic.core.ui.theme.saturate
 import com.lin0721.linmusic.core.player.domain.LyricLine
 import com.lin0721.linmusic.core.player.domain.lyricLineKey
+import com.lin0721.linmusic.core.ui.layout.LocalDisplayLyricCardColors
+import com.lin0721.linmusic.core.ui.layout.LocalPassengerDisplay
 
 private val LYRICS_CARD_BLUR_RADIUS = 32.dp
+
+// 歌词预览卡右下角光斑的固定位置/半径（原为缓慢游走的无限动画，取值取区间中值）
+private const val LyricsCardBlobCenter = 1.275f
+private const val LyricsCardBlobRadiusScale = 0.45f
 
 private val ShowLyricsButtonHeight = 36.dp
 private val ShowLyricsButtonTopGap = MelodiaSpacing.md
@@ -62,44 +67,30 @@ fun LyricsCard(
     base: Color,
     onOpenFullScreen: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "fluid_mesh")
-
-    // 右下角光斑动画
-    val darkCenterX by infiniteTransition.animateFloat(
-        initialValue = 1.20f,
-        targetValue = 1.35f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(15000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dark_x"
-    )
-    val darkCenterY by infiniteTransition.animateFloat(
-        initialValue = 1.20f,
-        targetValue = 1.35f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(13000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dark_y"
-    )
-    val darkRadiusScale by infiniteTransition.animateFloat(
-        initialValue = 0.40f,
-        targetValue = 0.50f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dark_radius"
-    )
+    val settings = LocalDisplayLyricCardColors.current.forDisplay(LocalPassengerDisplay.current)
+    // 右下角光斑原来是无限游走的动画，改成固定位置：整块卡片是全屏尺寸的模糊层，
+    // 动画会让它每帧都重绘+重新模糊，播放页实测被拖到个位数帧率（车机上就是一进播放页就卡死），
+    // 而游走与静止在肉眼上几乎分不出来。取值取原动画区间的中值。
+    val darkCenterX = LyricsCardBlobCenter
+    val darkCenterY = LyricsCardBlobCenter
+    val darkRadiusScale = LyricsCardBlobRadiusScale
 
     val vividBase = remember(base) { base.saturate(0.6f) }
-    val fillColor = remember(vividBase) { vividBase.darken(0.35f) }
-    val darkBlob = remember(vividBase) { vividBase.darken(0.15f) }
+    // Portrait and wide playback use the same cover-derived, static mesh.
+    // Layout must not silently replace the palette with a fixed neutral surface.
+    fun adjust(color: Color): Color {
+        val rgb = adjustedLyricCardRgb(listOf(color.red, color.green, color.blue), settings)
+        return Color(rgb[0], rgb[1], rgb[2], 1f)
+    }
+    val fillColor = remember(vividBase, settings) { adjust(vividBase.darken(0.35f)) }
+    val darkBlob = remember(vividBase, settings) { adjust(vividBase.darken(0.15f)) }
     // 未唱到的歌词颜色跟全屏歌词页的 textHighlight 用同一套配方，背景用的 vividBase 幅度较小，
     // 文字这里单独再提一档饱和度+明度，不然混完白会发灰
     val textVividBase = remember(base) { base.saturate(0.8f).lighten(1.0f) }
-    val inactiveLyricColor = remember(textVividBase) { lerp(textVividBase, Color.White, 0.5f) }
+    val inactiveLyricColor = remember(textVividBase, settings) {
+        val rgb = lyricCardInactiveTextRgb(listOf(textVividBase.red, textVividBase.green, textVividBase.blue), settings)
+        Color(rgb[0], rgb[1], rgb[2], 1f)
+    }
 
     // 当前行实际换行数，由 LyricsPreview 里当前行 Text 的 onTextLayout 回报，用来动态撑高预览区
     var currentLineWrapLines by remember { mutableIntStateOf(1) }
@@ -123,14 +114,19 @@ fun LyricsCard(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .blur(LYRICS_CARD_BLUR_RADIUS)
+                .then(if (settings.enabled && settings.gradientStrength > 0) Modifier.blur(LYRICS_CARD_BLUR_RADIUS) else Modifier)
                 .drawBehind {
+                    if (!settings.enabled || settings.gradientStrength == 0) {
+                        drawRect(fillColor)
+                        return@drawBehind
+                    }
                     val baseSize = size.minDimension
                     drawSingleHueMesh(
                         fill = fillColor,
                         darkBlob = darkBlob,
                         darkCenter = Offset(size.width * darkCenterX, size.height * darkCenterY),
-                        darkRadius = baseSize * darkRadiusScale
+                        darkRadius = baseSize * darkRadiusScale,
+                        darkOpacity = 0.6f * settings.gradientStrength / 100f
                     )
                 }
         )

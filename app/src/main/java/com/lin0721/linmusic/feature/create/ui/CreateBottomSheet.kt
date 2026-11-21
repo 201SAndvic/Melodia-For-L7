@@ -36,6 +36,8 @@ import com.lin0721.linmusic.core.ui.theme.SurfaceLight
 import com.lin0721.linmusic.core.ui.theme.TextGray
 import org.koin.androidx.compose.koinViewModel
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -168,6 +170,7 @@ private fun CreatePlaylistDialog(
     var isPrivate by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = { if (!isCreating) onDismiss() },
         containerColor = SurfaceDark,
         shape = BottomSheetShape,
@@ -181,91 +184,94 @@ private fun CreatePlaylistDialog(
             }
         }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(horizontal = MelodiaSpacing.lg, vertical = MelodiaSpacing.md)
-        ) {
-            Text(
-                text = "新建歌单",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(BackgroundDark)
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (name.isEmpty()) {
-                    Text("我的新歌单", color = TextGray, fontSize = 15.sp)
-                }
-                BasicTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
-                    cursorBrush = SolidColor(NeteaseRed),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("设为隐私歌单", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Text("仅自己可见", color = TextGray, fontSize = 12.sp)
-                }
-                MelodiaSwitch(
-                    checked = isPrivate,
-                    onCheckedChange = { isPrivate = it }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MelodiaTextButton(
-                    onClick = onDismiss,
-                    enabled = !isCreating
+        MelodiaSheetDensity {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = MelodiaSpacing.lg, vertical = MelodiaSpacing.md)
                 ) {
-                    Text("取消", color = Color.White)
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                MelodiaButton(
-                    onClick = { onConfirm(name, isPrivate) },
-                    enabled = !isCreating && name.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = NeteaseRed),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    if (isCreating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
+                    Text(
+                        text = "新建歌单",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(BackgroundDark)
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (name.isEmpty()) {
+                            Text("我的新歌单", color = TextGray, fontSize = 15.sp)
+                        }
+                        BasicTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                            cursorBrush = SolidColor(NeteaseRed),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
                         )
-                    } else {
-                        Text("创建", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("设为隐私歌单", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("仅自己可见", color = TextGray, fontSize = 12.sp)
+                        }
+                        MelodiaSwitch(
+                            checked = isPrivate,
+                            onCheckedChange = { isPrivate = it }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MelodiaTextButton(
+                            onClick = onDismiss,
+                            enabled = !isCreating
+                        ) {
+                            Text("取消", color = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        MelodiaButton(
+                            onClick = { onConfirm(name, isPrivate) },
+                            enabled = !isCreating && name.isNotBlank(),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeteaseRed),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            if (isCreating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("创建", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
-            }
+
         }
     }
 }

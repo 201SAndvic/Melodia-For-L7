@@ -55,7 +55,6 @@ import com.lin0721.linmusic.core.ui.theme.BackgroundDark
 import com.lin0721.linmusic.core.ui.theme.TextGray
 import com.lin0721.linmusic.core.ui.theme.extractBackdropPaletteFromUrl
 import com.lin0721.linmusic.core.ui.theme.PaletteMemoryCache
-import dev.chrisbanes.haze.HazeState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -84,7 +83,6 @@ fun MiniPlayerCard(
     onNext: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    hazeState: HazeState? = null,
     onDrag: ((Float) -> Unit)? = null,
     onDragEnd: ((Float) -> Unit)? = null,
     previousQueueItem: QueueItem? = null,
@@ -100,20 +98,23 @@ fun MiniPlayerCard(
     val cleanCoverUrl = remember(currentTrack.mediaMetadata.artworkUri) {
         currentTrack.mediaMetadata.artworkUri?.toString() ?: ""
     }
+    val paletteCacheKey = remember(currentTrack.mediaId, cleanCoverUrl) {
+        PaletteMemoryCache.key(currentTrack.mediaId, cleanCoverUrl)
+    }
 
     // 缓存并提取背景色，优先从缓存中获取，无缓存则默认为深灰色
     var colorPalette by remember(currentTrack.mediaId) {
         mutableStateOf(
-            PaletteMemoryCache.get(currentTrack.mediaId) ?: FallbackBackdropPalette
+            PaletteMemoryCache.get(paletteCacheKey) ?: FallbackBackdropPalette
         )
     }
 
     // 取色跟显示解码完全脱钩，单独发请求；缓存命中就不用再取一次
-    LaunchedEffect(currentTrack.mediaId, cleanCoverUrl) {
-        if (PaletteMemoryCache.get(currentTrack.mediaId) == null && cleanCoverUrl.isNotEmpty()) {
+    LaunchedEffect(paletteCacheKey) {
+        if (PaletteMemoryCache.get(paletteCacheKey) == null && cleanCoverUrl.isNotEmpty()) {
             val palette = extractBackdropPaletteFromUrl(context, cleanCoverUrl)
             colorPalette = palette
-            PaletteMemoryCache.put(currentTrack.mediaId, palette)
+            PaletteMemoryCache.put(paletteCacheKey, palette)
         }
     }
 
@@ -233,11 +234,11 @@ fun MiniPlayerCard(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy((-2).dp)) {
-                    // 收藏到歌单按钮：图标跟着"是否已在我喜欢的音乐里"变化，具体收藏到哪些歌单由弹层里的勾选决定
+                    // Same direct like/unlike action as the full playback page.
                     MelodiaIconButton(onClick = onLikeClick) {
                         Icon(
                             imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                            contentDescription = "收藏到歌单",
+                            contentDescription = if (isLiked) "移出我喜欢的音乐" else "加入我喜欢的音乐",
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -450,7 +451,7 @@ fun MiniPlayerProgress(
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.08f))
     ) {
-        val currentPosition = currentPositionProvider()
+        val currentPosition = com.lin0721.linmusic.core.ui.layout.sampledProgressPosition(currentPositionProvider)
         val progress = if (duration > 0) currentPosition.toFloat() / duration else 0f
         Box(
             modifier = Modifier

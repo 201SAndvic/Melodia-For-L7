@@ -19,6 +19,8 @@ import com.lin0721.linmusic.core.ui.components.MelodiaDragHandle
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.model.ArtistDetailInfo
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // ────────────────────────────────────────────────────────────────────────────
 // 艺人简介 Dialog
@@ -69,56 +71,60 @@ fun ArtistMoreMenuSheet(
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = MelodiaSpacing.lg, vertical = MelodiaSpacing.md)
-        ) {
-            Text(
-                text = "歌手操作",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        onDismiss()
-                        onBlockClick()
-                    }
-                    .padding(vertical = MelodiaSpacing.sm),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (isBlocked) Icons.Default.CheckCircle else Icons.Default.Warning,
-                    contentDescription = if (isBlocked) "取消屏蔽" else "屏蔽歌手",
-                    tint = if (isBlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(MelodiaSpacing.md))
-                Column {
+        MelodiaSheetDensity {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = MelodiaSpacing.lg, vertical = MelodiaSpacing.md)
+                ) {
                     Text(
-                        text = if (isBlocked) "取消屏蔽该艺人所有歌曲" else "屏蔽该艺人所有歌曲",
+                        text = "歌手操作",
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
                     )
-                    Text(
-                        text = if (isBlocked) "取消屏蔽后，其歌曲将重新显示在推荐和搜索中" else "屏蔽后，其歌曲将不再在推荐和搜索中展示",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onDismiss()
+                                onBlockClick()
+                            }
+                            .padding(vertical = MelodiaSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isBlocked) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = if (isBlocked) "取消屏蔽" else "屏蔽歌手",
+                            tint = if (isBlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(MelodiaSpacing.md))
+                        Column {
+                            Text(
+                                text = if (isBlocked) "取消屏蔽该艺人所有歌曲" else "屏蔽该艺人所有歌曲",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isBlocked) "取消屏蔽后，其歌曲将重新显示在推荐和搜索中" else "屏蔽后，其歌曲将不再在推荐和搜索中展示",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 }
-            }
+
         }
     }
 }

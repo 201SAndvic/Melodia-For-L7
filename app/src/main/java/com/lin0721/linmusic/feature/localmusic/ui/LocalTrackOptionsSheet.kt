@@ -44,6 +44,8 @@ import com.lin0721.linmusic.core.ui.theme.NeteaseRed
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
 import com.lin0721.linmusic.core.ui.theme.TextGray
 import kotlinx.coroutines.launch
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // 本地曲目操作面板
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,73 +71,77 @@ fun LocalTrackOptionsSheet(
     }
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = BackgroundDark,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = MelodiaSpacing.md)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SubcomposeAsyncImage(
-                    model = coverUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    loading = { CoverPlaceholder() },
-                    error = { CoverPlaceholder() },
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(RadiusCompact))
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = track.title,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+        MelodiaSheetDensity {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = MelodiaSpacing.md)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SubcomposeAsyncImage(
+                            model = coverUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            loading = { CoverPlaceholder() },
+                            error = { CoverPlaceholder() },
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(RadiusCompact))
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.title,
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = track.artist,
+                                color = TextGray,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
                     )
-                    Text(
-                        text = track.artist,
-                        color = TextGray,
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+
+                    SheetOptionRow(icon = Icons.Rounded.PlayArrow, label = "播放") {
+                        runThenHide(onPlayClick)
+                    }
+                    SheetOptionRow(icon = Icons.AutoMirrored.Rounded.PlaylistPlay, label = "下一首播放") {
+                        runThenHide(onPlayNextClick)
+                    }
+                    SheetOptionRow(icon = Icons.Rounded.Share, label = "分享文件") {
+                        runThenHide(onShareClick)
+                    }
+                    SheetOptionRow(icon = Icons.Rounded.Info, label = "查看详情") {
+                        runThenHide(onDetailClick)
+                    }
+                    SheetOptionRow(icon = Icons.Rounded.DeleteOutline, label = "删除", tint = NeteaseRed) {
+                        runThenHide(onDeleteClick)
+                    }
                 }
-            }
 
-            HorizontalDivider(
-                color = Color.White.copy(alpha = 0.08f),
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
-            )
-
-            SheetOptionRow(icon = Icons.Rounded.PlayArrow, label = "播放") {
-                runThenHide(onPlayClick)
-            }
-            SheetOptionRow(icon = Icons.AutoMirrored.Rounded.PlaylistPlay, label = "下一首播放") {
-                runThenHide(onPlayNextClick)
-            }
-            SheetOptionRow(icon = Icons.Rounded.Share, label = "分享文件") {
-                runThenHide(onShareClick)
-            }
-            SheetOptionRow(icon = Icons.Rounded.Info, label = "查看详情") {
-                runThenHide(onDetailClick)
-            }
-            SheetOptionRow(icon = Icons.Rounded.DeleteOutline, label = "删除", tint = NeteaseRed) {
-                runThenHide(onDeleteClick)
-            }
         }
     }
 }

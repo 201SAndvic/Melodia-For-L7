@@ -36,6 +36,8 @@ import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.DragHandleShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import org.koin.compose.koinInject
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // 只展示物理输出类型，蓝牙 LE/USB/有线各算一类
 internal val RELEVANT_DEVICE_TYPES = setOf(
@@ -154,6 +156,7 @@ fun OutputDeviceSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
@@ -169,123 +172,126 @@ fun OutputDeviceSheet(
             )
         }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-        ) {
-            Text(
-                text = "连接设备",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-
-            if (devices.isEmpty()) {
-                Text(
-                    text = "未检测到可用的输出设备",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)) {
-                devices.forEach { device ->
-                    val isSelected = effectiveSelectedId != -1 && effectiveSelectedId == device.id
-                    val rowBackground = if (isSelected) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                    } else {
-                        Color.White.copy(alpha = 0.05f)
-                    }
-                    val badgeBackground = if (isSelected) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                    } else {
-                        Color.White.copy(alpha = 0.08f)
-                    }
-                    val iconTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(rowBackground)
-                            .clickable { onDeviceSelected(device.id) }
-                            .padding(horizontal = MelodiaSpacing.md, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(badgeBackground),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = deviceIcon(device.type),
-                                contentDescription = null,
-                                tint = iconTint,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = deviceLabel(device),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = deviceTypeLabel(device.type),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp
-                            )
-                        }
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-
-                Row(
+        MelodiaSheetDensity {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { openBluetoothSettings(context) }
-                        .padding(horizontal = MelodiaSpacing.md, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .navigationBarsPadding()
+                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                    Text(
+                        text = "连接设备",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                    )
+
+                    if (devices.isEmpty()) {
+                        Text(
+                            text = "未检测到可用的输出设备",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(vertical = 12.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
-                    Text(
-                        text = "添加新设备",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)) {
+                        devices.forEach { device ->
+                            val isSelected = effectiveSelectedId != -1 && effectiveSelectedId == device.id
+                            val rowBackground = if (isSelected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            } else {
+                                Color.White.copy(alpha = 0.05f)
+                            }
+                            val badgeBackground = if (isSelected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            } else {
+                                Color.White.copy(alpha = 0.08f)
+                            }
+                            val iconTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(rowBackground)
+                                    .clickable { onDeviceSelected(device.id) }
+                                    .padding(horizontal = MelodiaSpacing.md, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(badgeBackground),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = deviceIcon(device.type),
+                                        contentDescription = null,
+                                        tint = iconTint,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = deviceLabel(device),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = deviceTypeLabel(device.type),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { openBluetoothSettings(context) }
+                                .padding(horizontal = MelodiaSpacing.md, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.08f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
+                            Text(
+                                text = "添加新设备",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
-            }
+
         }
     }
 }

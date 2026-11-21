@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.flowOf
 class FakeCommentRepository : CommentRepository {
 
     var commentsV2Result: Result<CommentsV2Data> = Result.success(CommentsV2Data())
+    var commentsV2Flow: Flow<Result<CommentsV2Data>>? = null
     var floorResult: Result<FloorCommentsData> = Result.success(FloorCommentsData())
     var likeResult: Result<Unit> = Result.success(Unit)
     var addCommentResult: Result<CommentItem?> = Result.success(null)
@@ -39,7 +40,7 @@ class FakeCommentRepository : CommentRepository {
         sortType: CommentSortType
     ): Flow<Result<CommentsV2Data>> {
         lastGetCommentsV2Call = Quintuple(threadId, pageNo, pageSize, cursor, sortType)
-        return flowOf(commentsV2Result)
+        return commentsV2Flow ?: flowOf(commentsV2Result)
     }
 
     override fun getFloorComments(

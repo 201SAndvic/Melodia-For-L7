@@ -70,12 +70,11 @@ class PlaybackPreferences(private val context: Context) {
         )
     }
 
-    val playMode: Flow<PlayMode> = context.dataStore.data.map { prefs ->
-        val name = prefs[KEY_PLAY_MODE]
-        runCatching { PlayMode.valueOf(name ?: "") }
-            .onFailure { AppLogger.w(TAG, "播放模式反序列化失败 value=$name", it) }
-            .getOrDefault(PlayMode.LIST_LOOP)
-    }.distinctUntilChanged()
+    // 缺失值是首次安装/旧版本迁移的正常状态，不能在每次进度写盘时抛异常。
+    val playMode: Flow<PlayMode> = context.dataStore.data
+        .map { it[KEY_PLAY_MODE] }
+        .distinctUntilChanged()
+        .map(::decodeSavedPlayMode)
 
     suspend fun savePlaybackState(state: PlaybackState) {
         context.dataStore.edit { prefs ->
@@ -116,3 +115,6 @@ class PlaybackPreferences(private val context: Context) {
         }
     }
 }
+
+internal fun decodeSavedPlayMode(name: String?): PlayMode =
+    PlayMode.entries.firstOrNull { it.name == name } ?: PlayMode.LIST_LOOP

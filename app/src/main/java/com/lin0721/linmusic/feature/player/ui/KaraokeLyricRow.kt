@@ -262,7 +262,12 @@ fun KaraokeLyricRow(
                 textAlign = textAlign,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .graphicsLayer {
+                        // DstOut/Plus must stay isolated once the layout is ready.
+                        alpha = if (lyricLayoutInfo != null) 1f else 0f
+                        compositingStrategy = if (needsKaraokeOffscreen(lyricLayoutInfo != null, advancedEffect))
+                            CompositingStrategy.Offscreen else CompositingStrategy.Auto
+                    }
                     .drawWithContent {
                         val unused = frameTick
                         drawContent()

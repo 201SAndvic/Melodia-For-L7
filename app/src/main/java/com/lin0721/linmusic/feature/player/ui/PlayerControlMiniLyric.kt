@@ -80,12 +80,14 @@ fun LoadingDotsAnimation(
     dotSize: androidx.compose.ui.unit.Dp = 8.dp,
     spacing: androidx.compose.ui.unit.Dp = 6.dp
 ) {
+    val animateDots = isPlaying && !com.lin0721.linmusic.core.ui.layout.LocalPerformanceOptimizations.current
+        .enabled(com.lin0721.linmusic.core.preferences.PerformanceOptimization.SIMPLE_DECORATIONS)
     val dot1Scale = remember { Animatable(0.3f) }
     val dot2Scale = remember { Animatable(0.3f) }
     val dot3Scale = remember { Animatable(0.3f) }
 
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
+    LaunchedEffect(animateDots) {
+        if (animateDots) {
             launch {
                 dot1Scale.animateTo(
                     targetValue = 1f,

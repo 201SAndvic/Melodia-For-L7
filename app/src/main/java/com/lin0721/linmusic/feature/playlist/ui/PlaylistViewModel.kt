@@ -326,12 +326,26 @@ class PlaylistViewModel(
     }
 
     fun playSongInList(track: Track, allTracks: List<Track>) {
-        val playlistName = (_uiState.value as? PlaylistUiState.Success)?.playlist?.name
+        val state = _uiState.value as? PlaylistUiState.Success
+        val playlistName = state?.playlist?.name
         val queueItems = allTracks.map { t ->
             QueueItem(t.id, t.name, t.ar.joinToString { it.name }, t.al.picUrl)
         }
         val startIndex = allTracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
         playerManager.playQueue(queueItems, startIndex, playlistName)
+        val loadedIds = allTracks.mapTo(HashSet()) { it.id }
+        val missing = state?.playlist?.trackIds.orEmpty().map { it.id }.filter { it !in loadedIds }.distinct()
+        if (missing.isNotEmpty()) {
+            // Capture repository only: no ViewModel lifetime or mutable page state in background work.
+            val repository = playlistRepository
+            playerManager.completeQueueInBackground(missing.chunked(TRACK_PAGE_SIZE)) { ids ->
+                val tracks = repository.loadMoreTracks(ids).first().getOrThrow()
+                val byId = tracks.associateBy { it.id }
+                ids.mapNotNull { byId[it] }.map { t ->
+                    QueueItem(t.id, t.name, t.ar.joinToString { it.name }, t.al.picUrl)
+                }
+            }
+        }
     }
 
     fun addTrackToPlayNext(track: Track) {

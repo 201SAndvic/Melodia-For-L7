@@ -45,6 +45,8 @@ import com.lin0721.linmusic.core.ui.theme.RadiusCompact
 import com.lin0721.linmusic.core.ui.theme.TextGray
 import com.lin0721.linmusic.feature.cloud.domain.CloudSong
 import kotlinx.coroutines.launch
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // 云盘歌曲的「更多操作」面板
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,145 +64,149 @@ fun CloudSongOptionsSheet(
     val scope = rememberCoroutineScope()
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = BackgroundDark,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = MelodiaSpacing.md)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SubcomposeAsyncImage(
-                    model = song.coverUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    loading = { CoverPlaceholder() },
-                    error = { CoverPlaceholder() },
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(RadiusCompact))
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = song.name,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+        MelodiaSheetDensity {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = MelodiaSpacing.md)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SubcomposeAsyncImage(
+                            model = song.coverUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            loading = { CoverPlaceholder() },
+                            error = { CoverPlaceholder() },
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(RadiusCompact))
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = song.name,
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = song.artist,
+                                color = TextGray,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
                     )
-                    Text(
-                        text = song.artist,
-                        color = TextGray,
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                scope.launch {
+                                    sheetState.hide()
+                                    onToggleLikeClick()
+                                }
+                            }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            contentDescription = null,
+                            tint = if (isLiked) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = if (isLiked) "取消喜欢" else "喜欢",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                scope.launch {
+                                    sheetState.hide()
+                                    onAddToPlaylistClick()
+                                }
+                            }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
+                        Text(
+                            text = "添加到歌单",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                scope.launch {
+                                    sheetState.hide()
+                                    onMatchClick()
+                                }
+                            }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
+                        Text(
+                            text = "重新匹配",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                scope.launch {
+                                    sheetState.hide()
+                                    onDeleteClick()
+                                }
+                            }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = NeteaseRed)
+                        Text(
+                            text = "删除",
+                            color = NeteaseRed,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
                 }
-            }
 
-            HorizontalDivider(
-                color = Color.White.copy(alpha = 0.08f),
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        scope.launch {
-                            sheetState.hide()
-                            onToggleLikeClick()
-                        }
-                    }
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    contentDescription = null,
-                    tint = if (isLiked) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = if (isLiked) "取消喜欢" else "喜欢",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(start = 16.dp)
-                )
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        scope.launch {
-                            sheetState.hide()
-                            onAddToPlaylistClick()
-                        }
-                    }
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
-                Text(
-                    text = "添加到歌单",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(start = 16.dp)
-                )
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        scope.launch {
-                            sheetState.hide()
-                            onMatchClick()
-                        }
-                    }
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Rounded.Refresh, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
-                Text(
-                    text = "重新匹配",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(start = 16.dp)
-                )
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        scope.launch {
-                            sheetState.hide()
-                            onDeleteClick()
-                        }
-                    }
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = NeteaseRed)
-                Text(
-                    text = "删除",
-                    color = NeteaseRed,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(start = 16.dp)
-                )
-            }
         }
     }
 }

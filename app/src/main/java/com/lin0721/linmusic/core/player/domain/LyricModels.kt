@@ -1,6 +1,9 @@
 package com.lin0721.linmusic.core.player.domain
 
+import kotlinx.serialization.Serializable
+
 // 单个字符/单词的耗时元数据
+@Serializable
 data class WordInfo(
     val text: String,
     val startOffsetMs: Long,  // 相对于整行歌词起始时间的偏移毫秒数
@@ -8,6 +11,7 @@ data class WordInfo(
 )
 
 // 歌词行领域模型
+@Serializable
 data class LyricLine(
     val timeMs: Long,
     val durationMs: Long = 0, // 新增：整行歌词的持续发音时间

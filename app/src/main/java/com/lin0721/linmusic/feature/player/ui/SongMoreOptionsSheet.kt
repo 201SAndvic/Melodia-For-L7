@@ -42,6 +42,8 @@ import androidx.compose.ui.window.Dialog
 import com.lin0721.linmusic.core.model.getQualityDisplayName
 import kotlinx.coroutines.launch
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,6 +76,7 @@ fun SongMoreOptionsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        sheetMaxWidth = MelodiaSheetWidth,
         containerColor = BackgroundDark,
         shape = BottomSheetShape,
         dragHandle = {
@@ -87,12 +90,13 @@ fun SongMoreOptionsSheet(
             )
         }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = MelodiaSpacing.md)
-        ) {
+        MelodiaSheetDensity {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = MelodiaSpacing.md)
+            ) {
             // 头部：封面 + 歌曲名 + 歌手名
             Row(
                 modifier = Modifier
@@ -301,6 +305,7 @@ fun SongMoreOptionsSheet(
                         "jymaster" to "超清母带"
                     )
                     ModalBottomSheet(
+                        sheetMaxWidth = MelodiaSheetWidth,
                         onDismissRequest = { showQualityDialog = false },
                         sheetState = qualitySheetState,
                         containerColor = BackgroundDark,
@@ -316,53 +321,56 @@ fun SongMoreOptionsSheet(
                             )
                         }
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-                        ) {
-                            Text(
-                                text = "选择播放音质",
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-                            )
-                            qualities.forEach { pair ->
-                                val key = pair.first
-                                val label = pair.second
-                                val isSelected = currentQuality == key
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            onQualitySelected(key)
-                                            scope.launch {
-                                                qualitySheetState.hide()
-                                                showQualityDialog = false
-                                            }
-                                        }
-                                        .padding(vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = label,
-                                        color = if (isSelected) NeteaseRed else Color.White,
-                                        fontSize = 15.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = NeteaseRed,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
+                        MelodiaSheetDensity {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .navigationBarsPadding()
+                                                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
+                                                ) {
+                                                    Text(
+                                                        text = "选择播放音质",
+                                                        color = Color.White,
+                                                        fontSize = 20.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                                                    )
+                                                    qualities.forEach { pair ->
+                                                        val key = pair.first
+                                                        val label = pair.second
+                                                        val isSelected = currentQuality == key
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clickable {
+                                                                    onQualitySelected(key)
+                                                                    scope.launch {
+                                                                        qualitySheetState.hide()
+                                                                        showQualityDialog = false
+                                                                    }
+                                                                }
+                                                                .padding(vertical = 12.dp),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.SpaceBetween
+                                                        ) {
+                                                            Text(
+                                                                text = label,
+                                                                color = if (isSelected) NeteaseRed else Color.White,
+                                                                fontSize = 15.sp,
+                                                                modifier = Modifier.weight(1f)
+                                                            )
+                                                            if (isSelected) {
+                                                                Icon(
+                                                                    imageVector = Icons.Rounded.Check,
+                                                                    contentDescription = null,
+                                                                    tint = NeteaseRed,
+                                                                    modifier = Modifier.size(20.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
                         }
                     }
                 }
@@ -386,6 +394,7 @@ fun SongMoreOptionsSheet(
                         }
                     }
                 )
+            }
             }
         }
     }

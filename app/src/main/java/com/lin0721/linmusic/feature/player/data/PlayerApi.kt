@@ -7,6 +7,8 @@ import retrofit2.http.POST
 
 // 播放器详情页（歌曲详情/百科/创作者）的网易云 Retrofit 接口定义。
 interface PlayerApi {
+    @POST("/eapi/song/chorus")
+    suspend fun getSongChorus(@Body body: SongChorusRequest): SongChorusResponse
 
     @POST("/eapi/v3/song/detail")
     suspend fun getSongDetail(
@@ -25,6 +27,19 @@ interface PlayerApi {
         @Body body: SongCreatorsRequest
     ): SongCreatorsResponse
 }
+
+@Serializable
+data class SongChorusRequest(val ids: String)
+@Serializable
+data class SongChorusResponse(val code: Int = 0, val chorus: List<SongChorusItem> = emptyList())
+@Serializable
+data class SongChorusItem(val id: Long = 0, val startTime: Long = 0, val endTime: Long = 0)
+@Serializable
+data class ChorusStart(val timeMs: Long? = null)
+
+internal fun SongChorusResponse.startFor(songId: Long): ChorusStart = ChorusStart(
+    chorus.filter { it.id == songId && it.startTime > 0 && (it.endTime == 0L || it.endTime > it.startTime) }
+        .minOfOrNull { it.startTime })
 
 // ======================= 歌曲详情 DTO =======================
 

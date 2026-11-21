@@ -30,7 +30,8 @@ fun ActionButtons(
     onOutputDeviceClick: () -> Unit,
     onQueueClick: () -> Unit,
     onShareClick: () -> Unit,
-    connectedDevice: AudioDeviceInfo? = null
+    connectedDevice: AudioDeviceInfo? = null,
+    compact: Boolean = false
 ) {
     val outputDeviceIcon = connectedDevice?.let { deviceIcon(it.type) } ?: Icons.Rounded.SpeakerGroup
     val outputDeviceTint = if (connectedDevice != null) MaterialTheme.colorScheme.primary else TextGray
@@ -38,8 +39,8 @@ fun ActionButtons(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = MelodiaSpacing.lg)
-            .padding(top = MelodiaSpacing.sm, bottom = MelodiaSpacing.md),
+            .padding(horizontal = if (compact) MelodiaSpacing.sm else MelodiaSpacing.lg)
+            .padding(top = if (compact) 0.dp else MelodiaSpacing.sm, bottom = if (compact) 0.dp else MelodiaSpacing.md),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -52,15 +53,15 @@ fun ActionButtons(
         ) {
             MelodiaIconButton(
                 onClick = onOutputDeviceClick,
-                modifier = Modifier.offset(x = (-12).dp)
+                modifier = Modifier.offset(x = if (compact) (-4).dp else (-12).dp)
             ) {
-                Icon(outputDeviceIcon, contentDescription = "连接设备", tint = outputDeviceTint, modifier = Modifier.size(24.dp))
+                Icon(outputDeviceIcon, contentDescription = "连接设备", tint = outputDeviceTint, modifier = Modifier.size(if (compact) 24.dp else 24.dp))
             }
             if (connectedDevice != null) {
                 Text(
                     text = deviceLabel(connectedDevice),
                     color = outputDeviceTint,
-                    fontSize = 12.sp,
+                    fontSize = if (compact) 11.sp else 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
@@ -75,14 +76,14 @@ fun ActionButtons(
                     imageVector = Icons.Rounded.Share,
                     contentDescription = "分享",
                     tint = TextGray,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(if (compact) 24.dp else 24.dp)
                 )
             }
             MelodiaIconButton(
                 onClick = onQueueClick,
-                modifier = Modifier.offset(x = 12.dp)
+                modifier = Modifier.offset(x = if (compact) 4.dp else 12.dp)
             ) {
-                Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, contentDescription = null, tint = TextGray, modifier = Modifier.size(30.dp))
+                Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, contentDescription = null, tint = TextGray, modifier = Modifier.size(if (compact) 28.dp else 30.dp))
             }
         }
     }

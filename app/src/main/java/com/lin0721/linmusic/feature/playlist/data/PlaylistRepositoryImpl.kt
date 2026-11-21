@@ -11,17 +11,20 @@ import kotlinx.coroutines.flow.map
 class PlaylistRepositoryImpl(
     private val apiService: PlaylistApi,
     private val contentFilter: ContentFilter,
-    private val playerRepository: PlayerRepository
+    private val playerRepository: PlayerRepository,
+    private val weakCache: com.lin0721.linmusic.core.network.WeakNetworkCache? = null
 ) : PlaylistRepository {
 
-    override fun getPlaylistDetail(id: Long): Flow<Result<PlaylistDetail>> = apiFlow(
+    override fun getPlaylistDetail(id: Long): Flow<Result<PlaylistDetail>> =
+        (weakCache?.cached("playlist:$id") { getUncachedPlaylistDetail(id) } ?: getUncachedPlaylistDetail(id)).map { result ->
+            result.map { it.copy(tracks = contentFilter.filterBlockedArtists(it.tracks) { track -> track.ar.map { a -> a.id } }) }
+        }
+
+    private fun getUncachedPlaylistDetail(id: Long): Flow<Result<PlaylistDetail>> = apiFlow(
         request = { apiService.getPlaylistDetail(PlaylistDetailRequest(id = id)) },
         isSuccess = { it.isSuccess && it.playlist != null },
         code = { it.code },
-        transform = { response ->
-            val filteredTracks = contentFilter.filterBlockedArtists(response.playlist!!.tracks) { it.ar.map { a -> a.id } }
-            response.playlist.copy(tracks = filteredTracks)
-        }
+        transform = { it.playlist!! }
     )
 
     override fun loadMoreTracks(trackIds: List<Long>): Flow<Result<List<Track>>> =
@@ -29,21 +32,25 @@ class PlaylistRepositoryImpl(
             result.map { tracks -> contentFilter.filterBlockedArtists(tracks) { it.ar.map { a -> a.id } } }
         }
 
-    override fun getAlbumDetail(id: Long): Flow<Result<PlaylistDetail>> = apiFlow(
+    override fun getAlbumDetail(id: Long): Flow<Result<PlaylistDetail>> =
+        (weakCache?.cached("album:$id") { getUncachedAlbumDetail(id) } ?: getUncachedAlbumDetail(id)).map { result ->
+            result.map { it.copy(tracks = contentFilter.filterBlockedArtists(it.tracks) { track -> track.ar.map { a -> a.id } }) }
+        }
+
+    private fun getUncachedAlbumDetail(id: Long): Flow<Result<PlaylistDetail>> = apiFlow(
         // 专辑 ID 需作为 URL 路径参数传入，不使用 AlbumDetailRequest 请求体
         request = { apiService.getAlbumDetail(id = id) },
         isSuccess = { it.isSuccess },
         code = { it.code },
         transform = { response ->
             val album = response.album
-            val filteredTracks = contentFilter.filterBlockedArtists(response.songs) { it.ar.map { a -> a.id } }
             PlaylistDetail(
                 id = album.id,
                 name = album.name,
                 coverImgUrl = album.picUrl,
                 description = album.description,
                 playCount = 0L,
-                tracks = filteredTracks
+                tracks = response.songs
             )
         }
     )
@@ -57,7 +64,7 @@ class PlaylistRepositoryImpl(
         },
         isSuccess = { it.isSuccess },
         code = { it.code },
-        transform = { Unit }
+        transform = { weakCache?.invalidateMetadata(); Unit }
     )
 
     override fun subscribeAlbum(albumId: Long, subscribe: Boolean): Flow<Result<Unit>> = apiFlow(
@@ -70,7 +77,7 @@ class PlaylistRepositoryImpl(
         isSuccess = { it.isSuccess },
         code = { it.code },
         msg = { it.message },
-        transform = { Unit }
+        transform = { weakCache?.invalidateMetadata(); Unit }
     )
 
     override fun manipulatePlaylistTracks(op: String, playlistId: Long, trackIds: List<Long>): Flow<Result<Unit>> = apiFlow(
@@ -86,7 +93,7 @@ class PlaylistRepositoryImpl(
         isSuccess = { it.isSuccess },
         code = { it.code },
         msg = { it.message },
-        transform = { Unit }
+        transform = { weakCache?.invalidateMetadata(); Unit }
     )
 
     override fun renamePlaylist(playlistId: Long, name: String): Flow<Result<Unit>> = apiFlow(
@@ -98,7 +105,7 @@ class PlaylistRepositoryImpl(
         isSuccess = { it.isSuccess },
         code = { it.code },
         msg = { it.message },
-        transform = { Unit }
+        transform = { weakCache?.invalidateMetadata(); Unit }
     )
 
     override fun updateDescription(playlistId: Long, desc: String): Flow<Result<Unit>> = apiFlow(
@@ -110,7 +117,7 @@ class PlaylistRepositoryImpl(
         isSuccess = { it.isSuccess },
         code = { it.code },
         msg = { it.message },
-        transform = { Unit }
+        transform = { weakCache?.invalidateMetadata(); Unit }
     )
 
     override fun deletePlaylist(playlistId: Long): Flow<Result<Unit>> = apiFlow(
@@ -122,7 +129,7 @@ class PlaylistRepositoryImpl(
         isSuccess = { it.isSuccess },
         code = { it.code },
         msg = { it.message },
-        transform = { Unit }
+        transform = { weakCache?.invalidateMetadata(); Unit }
     )
 
     override fun updatePlaylistCover(playlistId: Long, coverImgId: Long): Flow<Result<String>> = apiFlow(
@@ -134,7 +141,7 @@ class PlaylistRepositoryImpl(
         isSuccess = { it.isSuccess && !it.url.isNullOrBlank() },
         code = { it.code },
         msg = { it.message },
-        transform = { it.url.orEmpty() }
+        transform = { weakCache?.invalidateMetadata(); it.url.orEmpty() }
     )
 
 }

@@ -9,10 +9,14 @@ import kotlinx.coroutines.flow.flow
 private const val TAG = "UserArtistRepositoryImpl"
 
 class UserArtistRepositoryImpl(
-    private val apiService: UserArtistApi
+    private val apiService: UserArtistApi,
+    private val weakCache: com.lin0721.linmusic.core.network.WeakNetworkCache? = null
 ) : UserArtistRepository {
 
-    override fun getFavoriteArtists(): Flow<Result<List<ArtistInfo>>> = flow {
+    override fun getFavoriteArtists(): Flow<Result<List<ArtistInfo>>> =
+        weakCache?.cached("favorite_artists") { getUncachedFavoriteArtists() } ?: getUncachedFavoriteArtists()
+
+    private fun getUncachedFavoriteArtists(): Flow<Result<List<ArtistInfo>>> = flow {
         var artists = emptyList<ArtistInfo>()
 
         // 尝试获取已关注歌手（实际返回: {"data":[...], "code":200}）

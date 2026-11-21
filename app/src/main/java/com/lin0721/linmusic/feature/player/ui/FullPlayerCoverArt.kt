@@ -23,15 +23,33 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lin0721.linmusic.core.ui.components.MelodiaIconButton
 import com.lin0721.linmusic.core.ui.components.SwipeToSkipCover
+import com.lin0721.linmusic.core.ui.layout.LocalMelodiaWindow
+import com.lin0721.linmusic.core.ui.layout.playerCoverSize
+import com.lin0721.linmusic.core.ui.theme.PaletteMemoryCache
 import com.lin0721.linmusic.core.ui.theme.PlayerBackdropPalette
 import com.lin0721.linmusic.core.ui.theme.InfoCardRadius
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
 import com.lin0721.linmusic.core.ui.theme.extractBackdropPaletteFromUrl
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.log.PerformanceMonitor
+import android.os.SystemClock
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lin0721.linmusic.DualDisplayController
+import com.lin0721.linmusic.core.preferences.SettingsPreferences
+import com.lin0721.linmusic.core.preferences.PerformanceOptimization
+import com.lin0721.linmusic.core.ui.layout.LocalPerformanceOptimizations
+import com.lin0721.linmusic.core.ui.components.rememberCoverDisplayGestureModifier
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 // 封面区：播放来源标题栏 + 方形封面，加载成功后回传取色结果
 @Composable
@@ -50,14 +68,54 @@ fun FullPlayerCoverArt(
     previousKey: Any? = null,
     nextKey: Any? = null,
     modifier: Modifier = Modifier,
-    onCancelSwipe: () -> Boolean = { false }
+    onCancelSwipe: () -> Boolean = { false },
+    // 封面可见边长；不传时按当前窗口尺寸推算（参考手机端比例，并限制上限）
+    coverSize: Dp? = null,
+    // 取色缓存键（当前歌曲 mediaId）：命中缓存就不再重复解码+量化一次
+    paletteCacheKey: String? = null
 ) {
     val context = LocalContext.current
+    val window = LocalMelodiaWindow.current
+    val contentPadding = MelodiaSpacing.lg
+    val visibleCoverSize = coverSize ?: remember(window) { window.playerCoverSize() }
+    val preferences: SettingsPreferences = koinInject()
+    val gestureEnabled by preferences.dualDisplayCoverGestureEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val disableGestureAnimation = LocalPerformanceOptimizations.current.enabled(PerformanceOptimization.DISABLE_COVER_GESTURE_ANIMATION)
+    val gestureFeedback = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val feedbackDistance = with(density) { 10.dp.toPx() }
+    LaunchedEffect(disableGestureAnimation) {
+        if (disableGestureAnimation) { gestureFeedback.stop(); gestureFeedback.snapTo(0f) }
+    }
+    val displayGesture = rememberCoverDisplayGestureModifier(
+        enabled = gestureEnabled,
+        artworkInset = contentPadding,
+        confirmDistance = (visibleCoverSize * 0.25f).coerceIn(48.dp, 80.dp),
+        onAction = { enabled ->
+            // Window control must not be cancelled by a feedback animation or
+            // by disposing the passenger screen that this gesture closes.
+            DualDisplayController.setEnabledFromCover(context, enabled)
+            scope.launch {
+                if (!disableGestureAnimation) {
+                    gestureFeedback.snapTo(0f)
+                    gestureFeedback.animateTo(if (enabled) -feedbackDistance else feedbackDistance, tween(90))
+                }
+                if (!disableGestureAnimation) gestureFeedback.animateTo(0f, tween(160, easing = FastOutSlowInEasing))
+            }
+        }
+    )
 
-    // 取色跟封面显示解码完全脱钩，单独发一次固定尺寸的请求
-    LaunchedEffect(coverUrl) {
-        if (coverUrl.isNotEmpty()) {
-            onPaletteExtracted(extractBackdropPaletteFromUrl(context, coverUrl))
+    // 取色跟封面显示解码完全脱钩，单独发一次固定尺寸的请求；
+    // 已缓存过就跳过——打开播放页时这一步最容易被重复触发
+    LaunchedEffect(coverUrl, paletteCacheKey) {
+        val cached = paletteCacheKey?.let { PaletteMemoryCache.get(it) }
+        if (coverUrl.isNotEmpty() && cached == null) {
+            val startedAt = SystemClock.elapsedRealtime()
+            PerformanceMonitor.mark("cover_palette_start", "cached=false")
+            val palette = extractBackdropPaletteFromUrl(context, coverUrl)
+            PerformanceMonitor.mark("cover_palette_ready", "elapsedMs=${SystemClock.elapsedRealtime() - startedAt} fallback=${palette.isFallback}")
+            onPaletteExtracted(palette)
         }
     }
 
@@ -164,11 +222,14 @@ fun FullPlayerCoverArt(
             currentKey = currentKey,
             previousKey = previousKey,
             nextKey = nextKey,
-            contentPadding = MelodiaSpacing.lg,
+            contentPadding = contentPadding,
             contentScale = ContentScale.Crop,
             shape = RoundedCornerShape(RadiusCompact),
             elevation = 24.dp,
-            modifier = Modifier.fillMaxWidth(),
+            // 固定成「封面边长 + 左右内边距」，让封面不再随屏幕宽度无限放大
+            modifier = Modifier.width(visibleCoverSize + contentPadding * 2)
+                .then(displayGesture)
+                .graphicsLayer { translationY = gestureFeedback.value },
             onCancelPending = onCancelSwipe
         )
     }

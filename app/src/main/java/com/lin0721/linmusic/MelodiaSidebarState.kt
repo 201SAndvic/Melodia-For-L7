@@ -14,10 +14,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 enum class AppSidebarState {
@@ -31,6 +34,7 @@ class MelodiaSidebarState(
     val widthPx: Float,
     val draggableState: AnchoredDraggableState<AppSidebarState>
 ) {
+    private var navigationJob: Job? = null
 
     // 边缘滑动判断：避免抽屉打开手势与列表左右滑动冲突
     var isTouchStartingAtEdge by mutableStateOf(false)
@@ -58,11 +62,35 @@ class MelodiaSidebarState(
     }
 
     fun open() {
+        navigationJob?.cancel()
         scope.launch { draggableState.animateTo(AppSidebarState.Open) }
     }
 
     fun close() {
+        navigationJob?.cancel()
         scope.launch { draggableState.animateTo(AppSidebarState.Closed) }
+    }
+
+    // Only the newest menu action survives. A gesture interrupt cancels navigation.
+    fun closeThen(action: () -> Unit) {
+        navigationJob?.cancel()
+        navigationJob = scope.launch {
+            var delivered = false
+            val watcher = launch {
+                snapshotFlow { progress }.first { it <= 0.1f }
+                delivered = true
+                action()
+            }
+            try {
+                draggableState.animateTo(AppSidebarState.Closed)
+                if (!delivered) {
+                    watcher.cancel()
+                    action()
+                }
+            } finally {
+                watcher.cancel()
+            }
+        }
     }
 }
 

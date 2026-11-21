@@ -152,4 +152,68 @@ class MelodiaNavigationStateTest {
         nav.resetPlayerNavigation()
         assertFalse(nav.isNavigatingFromPlayer)
     }
+
+    @Test
+    fun `导航快照恢复最后打开的界面和 tab`() = inSnapshot {
+        val original = MelodiaNavigationState()
+        original.openPlaylist(id = 88L, isAlbum = false)
+        original.navigateTo(Screen.Search)
+        val restored = MelodiaNavigationState()
+
+        assertTrue(restored.restoreFromPersistence(original.snapshotForPersistence()))
+        assertEquals(Screen.Search, restored.currentScreen)
+        restored.navigateBack()
+        assertEquals(Screen.Home, restored.currentScreen)
+    }
+
+    @Test
+    fun `主副屏导航状态互不影响`() = inSnapshot {
+        val main = MelodiaNavigationState()
+        val secondary = MelodiaNavigationState()
+        main.openPlaylist(88L, false)
+        secondary.navigateTo(Screen.DualDisplay)
+
+        assertEquals(Screen.Playlist(88L, false), main.currentScreen)
+        assertEquals(Screen.DualDisplay, secondary.currentScreen)
+        secondary.navigateBack()
+        assertEquals(Screen.Playlist(88L, false), main.currentScreen)
+    }
+
+    @Test
+    fun `取色页面与性能优化同级且返回原页面`() = inSnapshot {
+        val nav = MelodiaNavigationState()
+        nav.openPlaylist(456L, false)
+        nav.navigateTo(Screen.LyricCardColors)
+        assertEquals(Screen.LyricCardColors, nav.currentScreen)
+        nav.navigateBack()
+        assertEquals(Screen.Playlist(456L, false), nav.currentScreen)
+    }
+
+    @Test
+    fun `独立取色页面可保存恢复且不改变副屏导航`() = inSnapshot {
+        val main = MelodiaNavigationState()
+        val secondary = MelodiaNavigationState()
+        secondary.openPlaylist(123L, false)
+        main.navigateTo(Screen.LyricCardColors)
+        val restored = MelodiaNavigationState()
+        assertTrue(restored.restoreFromPersistence(main.snapshotForPersistence()))
+        assertEquals(Screen.LyricCardColors, restored.currentScreen)
+        assertEquals(Screen.Playlist(123L, false), secondary.currentScreen)
+        restored.navigateBack()
+        assertEquals(Screen.Home, restored.currentScreen)
+    }
+
+    @Test
+    fun `独立诊断页面可保存恢复且不改变副屏导航`() = inSnapshot {
+        val main = MelodiaNavigationState()
+        val secondary = MelodiaNavigationState()
+        secondary.openPlaylist(123L, false)
+        main.navigateTo(Screen.Diagnostics)
+        val restored = MelodiaNavigationState()
+        assertTrue(restored.restoreFromPersistence(main.snapshotForPersistence()))
+        assertEquals(Screen.Diagnostics, restored.currentScreen)
+        assertEquals(Screen.Playlist(123L, false), secondary.currentScreen)
+        restored.navigateBack()
+        assertEquals(Screen.Home, restored.currentScreen)
+    }
 }

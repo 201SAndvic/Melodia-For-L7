@@ -3,6 +3,9 @@ package com.lin0721.linmusic.core.player.domain
 // YRC(逐字)/LRC(逐行) 歌词文本解析为 [LyricLine] 列表的纯函数工具
 object LyricParser {
 
+    fun parsePreferredTranslation(primary: String?, fallback: String?): List<LyricLine> =
+        parseLrc(primary.orEmpty()).ifEmpty { parseLrc(fallback.orEmpty()) }
+
     private val yrcLineRegex = Regex("""^\[(\d+),(\d+)](.*)$""")
     private val yrcWordRegex = Regex("""\((\d+),(\d+),\d+\)([^(\n]+)""")
 
@@ -39,11 +42,12 @@ object LyricParser {
         }.sortedBy { it.timeMs }
     }
 
-    private val lrcPattern = Regex("""\[(\d{2}):(\d{2})[.:](\d{2,3})](.*)""")
+    // Anchor at the beginning: an LRC timestamp inside a JSON metadata row is not a lyric.
+    private val lrcPattern = Regex("""^\[(\d{2}):(\d{2})[.:](\d{2,3})](.*)$""")
 
     fun parseLrc(lrcText: String): List<LyricLine> {
         return lrcText.lines().mapNotNull { line ->
-            lrcPattern.find(line)?.let { match ->
+            lrcPattern.find(line.trim().removePrefix("\uFEFF"))?.let { match ->
                 val min = match.groupValues[1].toLongOrNull() ?: return@let null
                 val sec = match.groupValues[2].toLongOrNull() ?: return@let null
                 val msRaw = match.groupValues[3]

@@ -13,13 +13,19 @@ import com.lin0721.linmusic.core.player.PlayerManager
 import com.lin0721.linmusic.core.player.data.PlaybackRepository
 import com.lin0721.linmusic.core.player.domain.LyricLine
 import com.lin0721.linmusic.core.preferences.SettingsPreferences
+import com.lin0721.linmusic.core.preferences.LyricInfoOutputSettings
+import com.lin0721.linmusic.core.preferences.LyricInfoLanguageMode
+import com.lin0721.linmusic.feature.player.data.SongWikiSummaryRepository
+import com.lin0721.linmusic.feature.player.data.languageLabels
+import com.lin0721.linmusic.core.log.PerformanceMonitor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 private const val TAG = "ExternalLyricCoordinator"
@@ -28,12 +34,19 @@ class ExternalLyricCoordinator(
     private val context: Context,
     private val playerManager: PlayerManager,
     private val playbackRepository: PlaybackRepository,
-    private val settingsPreferences: SettingsPreferences
+    private val settingsPreferences: SettingsPreferences,
+    private val wikiSummaryRepository: SongWikiSummaryRepository
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val lyriconAdapter = LyriconAdapter(context)
 
     private var lyricFetchJob: Job? = null
+    private var languageJob: Job? = null
+    private var languageSongId: Long = -1L
+    private var currentLanguage = ""
+    private var lyricInfoSettings = LyricInfoOutputSettings()
+    private var lyricInfoSettingsReady = false
+    private val lyricInfoPublication = LyricInfoPublicationState()
 
     private var currentSongId: Long = -1L
     private var currentLines: List<LyricLine> = emptyList()
@@ -62,7 +75,16 @@ class ExternalLyricCoordinator(
 
     private fun observeSettings() {
         scope.launch {
-            settingsPreferences.superLyricEnabled.collectLatest { enabled ->
+            settingsPreferences.lyricInfoOutputSettings.collectLatest { value ->
+                lyricInfoSettings = value
+                lyricInfoSettingsReady = true
+                rebuildLyricInfo()
+                refreshLyricInfoLanguage()
+                onMetadataChanged?.invoke()
+            }
+        }
+        scope.launch {
+            settingsPreferences.superLyricEnabled.distinctUntilChanged().collectLatest { enabled ->
                 isSuperLyricEnabled = enabled
                 if (enabled) {
                     SuperLyricHelper.registerPublisher()
@@ -74,15 +96,16 @@ class ExternalLyricCoordinator(
         }
 
         scope.launch {
-            settingsPreferences.lyricInfoEnabled.collectLatest { enabled ->
+            settingsPreferences.lyricInfoEnabled.distinctUntilChanged().collectLatest { enabled ->
                 isLyricInfoEnabled = enabled
                 rebuildLyricInfo()
+                if (!enabled) languageJob?.cancel() else refreshLyricInfoLanguage()
                 onMetadataChanged?.invoke()
             }
         }
 
         scope.launch {
-            settingsPreferences.bluetoothLyricEnabled.collectLatest { enabled ->
+            settingsPreferences.bluetoothLyricEnabled.distinctUntilChanged().collectLatest { enabled ->
                 isBluetoothLyricEnabled = enabled
                 if (!enabled) {
                     displayedTitle = originalTitle
@@ -94,7 +117,7 @@ class ExternalLyricCoordinator(
         }
 
         scope.launch {
-            settingsPreferences.lyriconEnabled.collectLatest { enabled ->
+            settingsPreferences.lyriconEnabled.distinctUntilChanged().collectLatest { enabled ->
                 isLyriconEnabled = enabled
                 lyriconAdapter.setEnabled(enabled)
                 if (enabled && currentSongId != -1L) {
@@ -110,9 +133,8 @@ class ExternalLyricCoordinator(
         }
 
         scope.launch {
-            settingsPreferences.fullScreenLyricShowTranslation.collectLatest { show ->
+            settingsPreferences.fullScreenLyricShowTranslation.distinctUntilChanged().collectLatest { show ->
                 isShowTranslation = show
-                rebuildLyricInfo()
                 if (isBluetoothLyricEnabled) {
                     updateBluetoothTitleForIndex(currentLyricIndex)
                 }
@@ -156,12 +178,21 @@ class ExternalLyricCoordinator(
             currentLyricIndex = -1
             currentLyricInfoJson = ""
             lyricFetchJob?.cancel()
+            languageJob?.cancel()
+            languageJob = null
+            val generation = lyricInfoPublication.beginTrack()
+            currentLanguage = ""
+            languageSongId = -1L
+            rebuildLyricInfo()
+            onMetadataChanged?.invoke()
 
             if (songId != -1L) {
                 lyricFetchJob = scope.launch {
                     playbackRepository.getLyrics(songId).collect { result ->
                         result.onSuccess { lines ->
+                            if (!lyricInfoPublication.acceptLyrics(generation, lines)) return@onSuccess
                             currentLines = lines
+                            refreshLyricInfoLanguage()
                             rebuildLyricInfo()
                             onMetadataChanged?.invoke()
 
@@ -288,18 +319,47 @@ class ExternalLyricCoordinator(
     }
 
     private fun rebuildLyricInfo() {
-        if (!isLyricInfoEnabled || currentSongId == -1L || currentLines.isEmpty()) {
+        if (!isLyricInfoEnabled || !lyricInfoSettingsReady || currentSongId == -1L) {
             currentLyricInfoJson = ""
             return
         }
-        currentLyricInfoJson = LyricInfoBuilder.buildLyricInfoJson(
+        currentLyricInfoJson = lyricInfoPublication.build(
             songName = originalTitle,
             artist = originalArtist,
             songId = currentSongId.toString(),
             album = originalAlbum,
-            lines = currentLines,
-            showTranslation = isShowTranslation
+            settings = lyricInfoSettings
         )
+        PerformanceMonitor.mark("lyric_info_output", "songId=$currentSongId generation=${lyricInfoPublication.generation} pending=${lyricInfoPublication.waiting(lyricInfoSettings)} format=${lyricInfoSettings.format} mode=${lyricInfoSettings.mode} language=${currentLanguage.replace(Regex("[\\r\\n]"), " ").take(80)} inputLines=${currentLines.size} translatedLines=${currentLines.count { !it.translation.isNullOrBlank() }} outputChars=${currentLyricInfoJson.length}")
+    }
+
+    private fun refreshLyricInfoLanguage() {
+        if (!isLyricInfoEnabled || !lyricInfoSettingsReady || lyricInfoSettings.mode != LyricInfoLanguageMode.AUTO ||
+            currentSongId == -1L || currentLines.none { !it.translation.isNullOrBlank() } ||
+            currentLines.any { LyricInfoOutputPolicy.isInstrumental(it.text) } ||
+            languageSongId == currentSongId || languageJob?.isActive == true) return
+        val songId = currentSongId
+        val generation = lyricInfoPublication.generation
+        languageJob = scope.launch {
+            try {
+                val result = wikiSummaryRepository.get(songId)
+                val language = result.getOrNull()?.languageLabels().orEmpty()
+                if (!lyricInfoPublication.acceptLanguage(generation, language)) return@launch
+                currentLanguage = language
+                languageSongId = songId
+                PerformanceMonitor.mark("lyric_info_language", "songId=$songId success=${result.isSuccess} label=${currentLanguage.replace(Regex("[\\r\\n]"), " ").take(80)}")
+                rebuildLyricInfo()
+                onMetadataChanged?.invoke()
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                if (!lyricInfoPublication.acceptLanguage(generation, "")) return@launch
+                currentLanguage = ""
+                languageSongId = songId
+                AppLogger.w(TAG, "语种读取失败，使用安全回退 songId=$songId", e)
+                rebuildLyricInfo()
+                onMetadataChanged?.invoke()
+            }
+        }
     }
 
     fun applyToMediaMetadata(builder: MediaMetadata.Builder, original: MediaMetadata): MediaMetadata {
@@ -345,6 +405,7 @@ class ExternalLyricCoordinator(
         }
         lyriconAdapter.release()
         lyricFetchJob?.cancel()
+        languageJob?.cancel()
         scope.cancel()
         onMetadataChanged = null
     }

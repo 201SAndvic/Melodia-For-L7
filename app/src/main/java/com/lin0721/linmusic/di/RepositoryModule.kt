@@ -52,11 +52,36 @@ import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
+import org.koin.android.ext.koin.androidContext
+import com.lin0721.linmusic.core.auth.UserPreferences
+import com.lin0721.linmusic.core.preferences.SettingsPreferences
+import com.lin0721.linmusic.core.network.WeakNetworkCache
+import kotlinx.coroutines.flow.first
 
 /**
  * Koin 数据仓库层依赖注入模块
  */
 val repositoryModule = module {
+    single { com.lin0721.linmusic.feature.player.data.SongWikiSummaryRepository(get(), get()) }
+    single {
+        val context = androidContext()
+        val users = get<UserPreferences>()
+        val settings = get<SettingsPreferences>()
+        WeakNetworkCache(
+            root = java.io.File(context.cacheDir, "weak_network"),
+            account = { users.userProfile.first()?.uid?.toString() ?: "guest" },
+            enabled = { settings.weakNetworkCacheEnabled.first() },
+            online = {
+                val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
+                val network = manager.activeNetwork
+                val caps = network?.let(manager::getNetworkCapabilities)
+                // OEM validation probes can fail in the garage even when the
+                // music server is reachable. Attempt requests with a timeout.
+                caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+            },
+            event = { com.lin0721.linmusic.core.log.AppLogger.performance(it) }
+        )
+    }
 
     // 登录态与账号信息（core/auth，跨业务域共享）
     singleOf(::AuthRepositoryImpl) { bind<AuthRepository>() }
@@ -92,6 +117,7 @@ val repositoryModule = module {
 
     // 歌曲红心数据仓储（core/songlike 共享能力）
     singleOf(::SongLikeRepositoryImpl) { bind<SongLikeRepository>() }
+    single { com.lin0721.linmusic.core.songlike.ToggleSongLikeUseCase(get()) }
 
     // 当前用户歌单列表仓储（core/userplaylist 共享能力）
     singleOf(::UserPlaylistRepositoryImpl) { bind<UserPlaylistRepository>() }

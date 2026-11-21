@@ -386,7 +386,6 @@ fun PlaylistContent(
             progress        = if (searchFullyRevealed) 1f else progress,
             overlayHeight   = overlayHeight,
             statusBarHeight = statusBarHeight,
-            dominantColor   = dominantColor,
             // 搜索展开中：返回箭头先关搜索，不直接退出歌单页
             onBack          = {
                 if (searchBarRevealState.isOpen) searchBarRevealState.close() else onBack()

@@ -43,6 +43,8 @@ import com.lin0721.linmusic.core.ui.theme.SurfaceDark
 import com.lin0721.linmusic.core.ui.theme.SurfaceLight
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import org.koin.androidx.compose.koinViewModel
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 private enum class LoginMode { CHOICE, QR, COOKIE }
 
@@ -69,6 +71,7 @@ fun LoginBottomSheet(
     }
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = {
             viewModel.resetQrState()
             onDismiss()
@@ -77,73 +80,76 @@ fun LoginBottomSheet(
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MelodiaSpacing.lg)
-                .padding(bottom = 64.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            AnimatedVisibility(
-                visible = mode != LoginMode.CHOICE,
-                // 只淡入淡出会导致这一行的高度在退场时一直占位，到组件真正移除才瞬间塌陷；
-                // 叠加 expand/shrink 让高度也跟着动画走，避免收尾那一下顿挫
-                enter = fadeIn(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing)) +
-                    expandVertically(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing)),
-                exit = fadeOut(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing)) +
-                    shrinkVertically(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing))
-            ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    MelodiaIconButton(onClick = {
-                        viewModel.resetQrState()
-                        mode = LoginMode.CHOICE
-                    }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Color.White)
-                    }
-                }
-            }
-
-            AnimatedContent(
-                targetState = mode,
-                transitionSpec = {
-                    val offsetSpec = tween<androidx.compose.ui.unit.IntOffset>(ContentSwitchDurationMs, easing = FastOutSlowInEasing)
-                    val alphaSpec = tween<Float>(ContentSwitchDurationMs, easing = FastOutSlowInEasing)
-                    val transform = if (targetState.depth() > initialState.depth()) {
-                        // 前进：新内容从右滑入，旧内容向左滑出
-                        (slideInHorizontally(offsetSpec) { it } + fadeIn(alphaSpec)) togetherWith
-                            (slideOutHorizontally(offsetSpec) { -it } + fadeOut(alphaSpec))
-                    } else {
-                        // 返回：方向相反
-                        (slideInHorizontally(offsetSpec) { -it } + fadeIn(alphaSpec)) togetherWith
-                            (slideOutHorizontally(offsetSpec) { it } + fadeOut(alphaSpec))
-                    }
-                    // 裁剪到动画中的实际尺寸，否则收缩方向（QR/COOKIE → CHOICE）旧内容按原尺寸绘制，
-                    // 跟弹窗实际高度对不上，切换完成瞬间会有一次纠正造成的顿挫
-                    transform.using(SizeTransform(clip = true))
-                },
-                label = "LoginModeContent"
-            ) { targetMode ->
-                // AnimatedContent 的内容槽本身是 Box，各态内容需要各自的 Column 才能纵向排列
+        MelodiaSheetDensity {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MelodiaSpacing.lg)
+                        .padding(bottom = 64.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    when (targetMode) {
-                        LoginMode.CHOICE -> LoginChoiceContent(
-                            onWebLogin = onWebLogin,
-                            onQrLogin = {
-                                mode = LoginMode.QR
-                                viewModel.startQrLogin(onLoginSuccess)
-                            },
-                            onCookieLogin = { mode = LoginMode.COOKIE }
-                        )
-                        LoginMode.QR -> QrLoginContent(viewModel = viewModel, onLoginSuccess = onLoginSuccess)
-                        LoginMode.COOKIE -> CookieLoginContent(
-                            onSubmit = { raw -> viewModel.submitCookieLogin(raw, onLoginSuccess) }
-                        )
+                    AnimatedVisibility(
+                        visible = mode != LoginMode.CHOICE,
+                        // 只淡入淡出会导致这一行的高度在退场时一直占位，到组件真正移除才瞬间塌陷；
+                        // 叠加 expand/shrink 让高度也跟着动画走，避免收尾那一下顿挫
+                        enter = fadeIn(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing)) +
+                            expandVertically(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing)),
+                        exit = fadeOut(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing)) +
+                            shrinkVertically(tween(ContentSwitchDurationMs, easing = FastOutSlowInEasing))
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            MelodiaIconButton(onClick = {
+                                viewModel.resetQrState()
+                                mode = LoginMode.CHOICE
+                            }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Color.White)
+                            }
+                        }
+                    }
+
+                    AnimatedContent(
+                        targetState = mode,
+                        transitionSpec = {
+                            val offsetSpec = tween<androidx.compose.ui.unit.IntOffset>(ContentSwitchDurationMs, easing = FastOutSlowInEasing)
+                            val alphaSpec = tween<Float>(ContentSwitchDurationMs, easing = FastOutSlowInEasing)
+                            val transform = if (targetState.depth() > initialState.depth()) {
+                                // 前进：新内容从右滑入，旧内容向左滑出
+                                (slideInHorizontally(offsetSpec) { it } + fadeIn(alphaSpec)) togetherWith
+                                    (slideOutHorizontally(offsetSpec) { -it } + fadeOut(alphaSpec))
+                            } else {
+                                // 返回：方向相反
+                                (slideInHorizontally(offsetSpec) { -it } + fadeIn(alphaSpec)) togetherWith
+                                    (slideOutHorizontally(offsetSpec) { it } + fadeOut(alphaSpec))
+                            }
+                            // 裁剪到动画中的实际尺寸，否则收缩方向（QR/COOKIE → CHOICE）旧内容按原尺寸绘制，
+                            // 跟弹窗实际高度对不上，切换完成瞬间会有一次纠正造成的顿挫
+                            transform.using(SizeTransform(clip = true))
+                        },
+                        label = "LoginModeContent"
+                    ) { targetMode ->
+                        // AnimatedContent 的内容槽本身是 Box，各态内容需要各自的 Column 才能纵向排列
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            when (targetMode) {
+                                LoginMode.CHOICE -> LoginChoiceContent(
+                                    onWebLogin = onWebLogin,
+                                    onQrLogin = {
+                                        mode = LoginMode.QR
+                                        viewModel.startQrLogin(onLoginSuccess)
+                                    },
+                                    onCookieLogin = { mode = LoginMode.COOKIE }
+                                )
+                                LoginMode.QR -> QrLoginContent(viewModel = viewModel, onLoginSuccess = onLoginSuccess)
+                                LoginMode.COOKIE -> CookieLoginContent(
+                                    onSubmit = { raw -> viewModel.submitCookieLogin(raw, onLoginSuccess) }
+                                )
+                            }
+                        }
                     }
                 }
-            }
+
         }
     }
 }

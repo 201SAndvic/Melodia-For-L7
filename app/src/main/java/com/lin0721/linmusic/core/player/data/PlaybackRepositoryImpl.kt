@@ -14,7 +14,11 @@ import com.lin0721.linmusic.core.userplaylist.UserPlaylistRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -27,7 +31,8 @@ class PlaybackRepositoryImpl(
     private val userPlaylistRepository: UserPlaylistRepository,
     private val contentFilter: ContentFilter,
     private val context: android.content.Context,
-    private val json: Json
+    private val json: Json,
+    private val weakCache: com.lin0721.linmusic.core.network.WeakNetworkCache? = null
 ) : PlaybackRepository {
 
     private fun isWifiConnected(): Boolean {
@@ -42,22 +47,66 @@ class PlaybackRepositoryImpl(
         }
     }
 
-    override fun getSongUrl(songId: Long): Flow<Result<String>> = apiFlow(
-        request = {
-            val quality = if (isWifiConnected()) {
-                settingsPreferences.wifiQuality.first()
-            } else {
-                settingsPreferences.mobileQuality.first()
-            }
-            apiService.getSongUrl(body = SongUrlRequest(ids = "[$songId]", level = quality))
-        },
-        // 该歌曲可能需要开启 VIP 或版权受限：code=200 但 url 为空，也算失败
-        isSuccess = { it.isSuccess && !it.data.firstOrNull()?.url.isNullOrBlank() },
-        code = { it.code },
-        transform = { it.data.first().url!! }
-    )
+    private suspend fun currentQuality(): String = if (isWifiConnected()) settingsPreferences.wifiQuality.first() else settingsPreferences.mobileQuality.first()
 
-    override fun getLyrics(songId: Long): Flow<Result<List<LyricLine>>> = apiFlow(
+    override fun getSongUrl(songId: Long): Flow<Result<String>> = getSongAudioInfo(songId).map { it.map { info -> info.url } }
+
+    override fun getSongAudioInfo(songId: Long): Flow<Result<PlaybackAudioInfo>> = flow {
+        val quality = currentQuality()
+        val owner = userPreferences.userProfile.first()?.uid?.toString() ?: "guest"
+        emitAll(apiFlow(
+            request = { apiService.getSongUrl(body = SongUrlRequest(ids = "[$songId]", level = quality)) },
+            isSuccess = { it.isSuccess && !it.data.firstOrNull()?.url.isNullOrBlank() },
+            code = { it.code },
+            transform = {
+                val item = it.data.first()
+                PlaybackAudioInfo(item.url!!, audioCacheKey(owner, songId, quality, item), item.size,
+                    item.freeTrialInfo != null, System.currentTimeMillis())
+            }
+        ).onEach { result ->
+            result.getOrNull()?.let {
+                weakCache?.save("audio:$songId:$quality", PlaybackAudioInfo.serializer(), it)
+                weakCache?.save("audio_latest:$songId", PlaybackAudioInfo.serializer(), it)
+            }
+        })
+    }
+
+    // Do not treat a valid old URL as permission to stream: this lookup only
+    // returns complete, non-trial bytes that already exist in our local cache.
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    override suspend fun getCompleteCachedAudio(songId: Long): PlaybackAudioInfo? {
+        if (!settingsPreferences.weakNetworkCacheEnabled.first()) return null
+        val preferred = weakCache?.readSaved("audio:$songId:${currentQuality()}", PlaybackAudioInfo.serializer())
+        val latest = weakCache?.readSaved("audio_latest:$songId", PlaybackAudioInfo.serializer())
+        for (info in listOfNotNull(preferred, latest).distinctBy { it.cacheKey }) {
+          val full = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val cache = com.lin0721.linmusic.core.player.AudioCacheManager.getCache(context, settingsPreferences.audioCacheMaxSize.first())
+                info.cacheKey?.let { info.sizeBytes > 0 && cache.isCached(it, 0, info.sizeBytes) } ?: false
+            }.getOrDefault(false)
+        }
+          if (canUseCompleteAudio(info, full)) return info
+        }
+        return null
+    }
+
+    override suspend fun cacheKeyForSongUrl(songId: Long, url: String): String? {
+        val info = weakCache?.readSaved("audio_latest:$songId", PlaybackAudioInfo.serializer())
+        return info?.takeIf { it.url == url }?.cacheKey
+    }
+
+    private val sharedLyrics = com.lin0721.linmusic.core.network.SharedResultCache<Long, List<LyricLine>>()
+
+    override fun getLyrics(songId: Long): Flow<Result<List<LyricLine>>> = kotlinx.coroutines.flow.flow {
+        emit(sharedLyrics.get(songId) {
+            // Parsed schema v2 excludes timestamps embedded in JSON metadata rows.
+            // Do not reuse old parsed results which may already contain JSON suffixes.
+            // Await the bounded refresh rather than freezing stale untranslated data.
+            (weakCache?.cached("lyrics:v2:$songId") { getUncachedLyrics(songId) } ?: getUncachedLyrics(songId)).last()
+        })
+    }
+
+    private fun getUncachedLyrics(songId: Long): Flow<Result<List<LyricLine>>> = apiFlow(
         request = {
             apiService.getLyrics(
                 LyricRequest(id = songId, tv = -1, lv = -1, rv = -1, kv = -1, ytv = -1, yrv = -1)
@@ -89,7 +138,7 @@ class PlaybackRepositoryImpl(
                             emptyList()
                         } else {
                             // 解析翻译歌词列表（优先使用 ytlrc，其次使用 tlyric）
-                            val translationLines = LyricParser.parseLrc(response.ytlrc?.lyric ?: response.tlyric?.lyric ?: "")
+                            val translationLines = LyricParser.parsePreferredTranslation(response.ytlrc?.lyric, response.tlyric?.lyric)
                             // 解析罗马音歌词列表
                             val romaLines = LyricParser.parseLrc(response.romalrc?.lyric ?: "")
                             lines.map { line ->

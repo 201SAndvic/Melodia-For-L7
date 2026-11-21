@@ -30,6 +30,8 @@ import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.userplaylist.UserPlaylist
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // ────────────────────────────────────────────────────────────────────────────
 // "添加到歌单"批量导入的目标歌单选择：单选即导入，不做逐首"是否已包含"核对
@@ -43,126 +45,130 @@ fun PlaylistImportTargetSheet(
     onCreateAndImport: (String) -> Unit
 ) {
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MelodiaSpacing.lg)
-                .navigationBarsPadding()
-                .padding(bottom = MelodiaSpacing.lg)
-        ) {
-            Text(
-                text = "添加到歌单",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-
-            var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-
-            if (importState.isLoading) {
-                Box(
+        MelodiaSheetDensity {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = MelodiaSpacing.lg)
+                        .navigationBarsPadding()
+                        .padding(bottom = MelodiaSpacing.lg)
                 ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)
-                ) {
-                    item(key = "create_new_playlist_item") {
-                        Row(
+                    Text(
+                        text = "添加到歌单",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                    )
+
+                    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
+                    if (importState.isLoading) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showCreatePlaylistDialog = true }
-                                .padding(vertical = MelodiaSpacing.sm),
-                            verticalAlignment = Alignment.CenterVertically
+                                .height(150.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "新建歌单",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "新建歌单",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    if (importState.items.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = MelodiaSpacing.lg),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("暂无其他可用歌单", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                            }
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         }
                     } else {
-                        items(importState.items, key = { it.id }) { item: UserPlaylist ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onSelectTarget(item.id) }
-                                    .padding(vertical = MelodiaSpacing.sm),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                SubcomposeAsyncImage(
-                                    model = "${item.coverImgUrl}?param=100y100",
-                                    contentDescription = item.name,
-                                    contentScale = ContentScale.Crop,
-                                    loading = { CoverPlaceholder() },
-                                    error = { CoverPlaceholder() },
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 300.dp),
+                            verticalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)
+                        ) {
+                            item(key = "create_new_playlist_item") {
+                                Row(
                                     modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(RoundedCornerShape(RadiusCompact))
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = item.name,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 14.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                        .fillMaxWidth()
+                                        .clickable { showCreatePlaylistDialog = true }
+                                        .padding(vertical = MelodiaSpacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = "新建歌单",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "新建歌单",
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            if (importState.items.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = MelodiaSpacing.lg),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("暂无其他可用歌单", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                                    }
+                                }
+                            } else {
+                                items(importState.items, key = { it.id }) { item: UserPlaylist ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { onSelectTarget(item.id) }
+                                            .padding(vertical = MelodiaSpacing.sm),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        SubcomposeAsyncImage(
+                                            model = "${item.coverImgUrl}?param=100y100",
+                                            contentDescription = item.name,
+                                            contentScale = ContentScale.Crop,
+                                            loading = { CoverPlaceholder() },
+                                            error = { CoverPlaceholder() },
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(RadiusCompact))
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = item.name,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 14.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
 
-            if (showCreatePlaylistDialog) {
-                CreatePlaylistDialog(
-                    onDismiss = { showCreatePlaylistDialog = false },
-                    onCreate = { name -> onCreateAndImport(name) }
-                )
-            }
+                    if (showCreatePlaylistDialog) {
+                        CreatePlaylistDialog(
+                            onDismiss = { showCreatePlaylistDialog = false },
+                            onCreate = { name -> onCreateAndImport(name) }
+                        )
+                    }
+                }
+
         }
     }
 }

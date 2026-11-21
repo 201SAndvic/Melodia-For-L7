@@ -1,7 +1,5 @@
 package com.lin0721.linmusic.feature.playlist.ui
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,7 +31,6 @@ import com.lin0721.linmusic.core.ui.components.MelodiaIconButton
 import com.lin0721.linmusic.core.ui.interaction.pressScale
 import com.lin0721.linmusic.core.ui.theme.MelodiaPress
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
-import com.lin0721.linmusic.core.ui.theme.darken
 import kotlin.math.roundToInt
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -47,18 +44,12 @@ fun PlaylistTopBar(
     progress: Float,
     overlayHeight: Dp,
     statusBarHeight: Dp,
-    dominantColor: Color,
     onBack: () -> Unit,
     onScrollToTop: () -> Unit = {}
 ) {
     val isScrolled = progress > 0f
-    // 取色完成时颜色平滑过渡，不直接跳变；跟顶栏同样的后处理，压暗一档再用
-    val animatedDominant by animateColorAsState(
-        targetValue = dominantColor,
-        animationSpec = tween(800),
-        label = "playlist_topbar_color"
-    )
-    val fillColor = remember(animatedDominant) { animatedDominant.darken(0.35f) }
+    // Only the collapsed overlay follows the list background. The cover gradient is unchanged.
+    val fillColor = MaterialTheme.colorScheme.background
     Box(
         modifier = Modifier
             .fillMaxWidth()

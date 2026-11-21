@@ -10,9 +10,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,6 +23,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.zIndex
 import androidx.media3.common.MediaItem
 import com.lin0721.linmusic.core.download.ui.DownloadProgressBanner
@@ -30,16 +33,15 @@ import com.lin0721.linmusic.core.ui.components.MelodiaNavigationBar
 import com.lin0721.linmusic.core.ui.components.MiniPlayerCard
 import com.lin0721.linmusic.feature.create.ui.CreatePopupMenu
 import com.lin0721.linmusic.feature.player.ui.FullPlayerScreen
-import dev.chrisbanes.haze.HazeState
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 
 // 悬浮播放卡片 + 底部导航栏的实际占用高度，供各页面计算列表底部留白，避免内容被遮挡
-val LocalBottomOverlayInset = staticCompositionLocalOf { 0.dp }
+val LocalBottomOverlayInset = compositionLocalOf { 0.dp }
 
 // 全屏播放器/侧边栏/创建菜单这类全局浮层是否开着。页面内部自己的 BackHandler（收起子菜单、退出搜索态等）
 // 需要在全局浮层开着时让位，否则 Compose 按注册顺序分发返回事件时会被内层的局部 BackHandler 抢先吞掉，
 // 导致返回键没有先关掉全局浮层，而是直接改动了浮层底下页面的内部状态
-val LocalGlobalOverlayOpen = staticCompositionLocalOf { false }
+val LocalGlobalOverlayOpen = compositionLocalOf { false }
 
 // ────────────────────────────────────────────────────────────────────────────
 // 底部浮层：创建菜单弹出层 + 悬浮播放卡片 + M3 导航栏
@@ -56,7 +58,6 @@ fun MelodiaBottomOverlay(
     isPlaying: Boolean,
     currentPositionProvider: () -> Long,
     duration: Long,
-    hazeState: HazeState,
     onTogglePlay: () -> Unit,
     onNext: () -> Unit,
     onMiniPlayerClick: () -> Unit,
@@ -132,7 +133,6 @@ fun MelodiaBottomOverlay(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 MiniPlayerCard(
-                    hazeState = hazeState,
                     currentTrack = currentTrack,
                     isPlaying = isPlaying,
                     currentPositionProvider = currentPositionProvider,
@@ -180,6 +180,7 @@ fun MelodiaFullPlayerOverlay(
     currentTrack: MediaItem?,
     screenHeightPx: Float,
     isPlayerOpen: Boolean,
+    openGeneration: Int,
     playerOffsetY: Float,
     isPlaying: Boolean,
     currentPositionProvider: () -> Long,
@@ -196,30 +197,44 @@ fun MelodiaFullPlayerOverlay(
     // 仅在播放器打开或动画进行中时渲染，避免关闭后 nestedScroll 拦截触摸事件
     if (currentTrack != null && screenHeightPx > 0f && isPlayerOpen) {
         Box(
-            modifier = modifier
-                .fillMaxSize()
-                .offset { IntOffset(0, playerOffsetY.toInt()) }
-                .clip(
-                    RoundedCornerShape(
-                        topStart = if (playerOffsetY > 0f) 24.dp else 0.dp,
-                        topEnd = if (playerOffsetY > 0f) 24.dp else 0.dp
-                    )
-                )
+            modifier = modifier.fillMaxSize()
         ) {
-            FullPlayerScreen(
-                currentTrack = currentTrack,
-                isPlaying = isPlaying,
-                currentPositionProvider = currentPositionProvider,
-                duration = duration,
-                onTogglePlay = onTogglePlay,
-                onSeek = onSeek,
-                onClose = onClose,
-                onDragClose = onDragClose,
-                isPlayerOpen = isPlayerOpen,
-                onArtistClick = onArtistClick,
-                onAlbumClick = onAlbumClick,
-                onNavigateToProfile = onNavigateToProfile
+            // 播放页下滑时顶部圆角会露出底层页面。单独铺一层黑色并按位移计算透明度，
+            // 让上滑进入时先变黑、下滑退出时再跟手还原底层颜色，避免继承上一页的色块。
+            val backgroundAlpha = (1f - playerOffsetY / screenHeightPx).coerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = backgroundAlpha))
             )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset { IntOffset(0, playerOffsetY.toInt()) }
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 24.dp,
+                            topEnd = 24.dp
+                        )
+                    )
+            ) {
+                key(openGeneration) {
+                    FullPlayerScreen(
+                        currentTrack = currentTrack,
+                        isPlaying = isPlaying,
+                        currentPositionProvider = currentPositionProvider,
+                        duration = duration,
+                        onTogglePlay = onTogglePlay,
+                        onSeek = onSeek,
+                        onClose = onClose,
+                        onDragClose = onDragClose,
+                        isPlayerOpen = isPlayerOpen,
+                        onArtistClick = onArtistClick,
+                        onAlbumClick = onAlbumClick,
+                        onNavigateToProfile = onNavigateToProfile
+                    )
+                }
+            }
         }
     }
 }

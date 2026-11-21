@@ -10,7 +10,8 @@ import coil.memory.MemoryCache
 import com.lin0721.linmusic.core.download.DownloadWorkerFactory
 import com.lin0721.linmusic.core.log.AppLogger
 import com.lin0721.linmusic.core.log.CrashHandler
-import com.lin0721.linmusic.core.update.UpdateManager
+import com.lin0721.linmusic.core.log.PerformanceMonitor
+import com.lin0721.linmusic.core.preferences.SettingsPreferences
 import com.lin0721.linmusic.di.downloadModule
 import com.lin0721.linmusic.di.localModule
 import com.lin0721.linmusic.di.localMusicModule
@@ -31,7 +32,6 @@ import org.koin.core.logger.Level
 
 class MelodiaApplication : Application() {
 
-    private val updateManager: UpdateManager by inject()
     private val downloadWorkerFactory: DownloadWorkerFactory by inject()
 
     override fun onCreate() {
@@ -39,6 +39,17 @@ class MelodiaApplication : Application() {
         // 尽早初始化，覆盖 Koin/Coil 启动阶段的崩溃与日志
         AppLogger.init(this)
         CrashHandler.init(this)
+        PerformanceMonitor.start(SettingsPreferences(this).performanceLogEnabled)
+        com.lin0721.linmusic.core.log.PlaybackStutterDiagnostics.initialize(this, SettingsPreferences(this).playbackStutterDiagnosticsEnabled)
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) = Unit
+            override fun onActivityStarted(activity: android.app.Activity) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = PerformanceMonitor.onActivityResumed(activity)
+            override fun onActivityPaused(activity: android.app.Activity) = PerformanceMonitor.onActivityPaused(activity)
+            override fun onActivityStopped(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
 
         val imageLoader = ImageLoader.Builder(this)
             .memoryCache {
@@ -77,10 +88,8 @@ class MelodiaApplication : Application() {
                 .build()
         )
 
-        // 延迟几秒后台检查更新，避开启动关键路径；进程生命周期内只检查这一次
-        CoroutineScope(Dispatchers.IO).launch {
-            delay(3000)
-            updateManager.checkForUpdate(manual = false)
-        }
+        // 本仓库是车机自用分支：不再做启动自动检查更新。
+        // 一旦顺着官方发布包升级，本分支的横屏/副屏适配与播放页封面改动会被整体覆盖，
+        // 所以这里连同更新入口一并摘掉（UpdateManager 仍在容器里，设置页入口已移除）
     }
 }

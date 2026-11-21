@@ -1,6 +1,7 @@
 package com.lin0721.linmusic.feature.player.ui
 
 import android.media.AudioDeviceInfo
+import androidx.compose.runtime.Composable
 import androidx.compose.foundation.lazy.LazyListScope
 import com.lin0721.linmusic.core.player.PlayMode
 import com.lin0721.linmusic.core.ui.theme.PlayerBackdropPalette
@@ -43,7 +44,8 @@ fun LazyListScope.fullPlayerPlaybackSection(
     onOutputDeviceClick: () -> Unit,
     onQueueClick: () -> Unit,
     onShareClick: () -> Unit,
-    connectedDevice: AudioDeviceInfo? = null
+    connectedDevice: AudioDeviceInfo? = null,
+    paletteCacheKey: String? = null
 ) {
     item(key = "cover") {
         FullPlayerItemEnterAnimation {
@@ -61,7 +63,8 @@ fun LazyListScope.fullPlayerPlaybackSection(
                 currentKey = currentKey,
                 previousKey = previousKey,
                 nextKey = nextKey,
-                onCancelSwipe = onCancelSwipe
+                onCancelSwipe = onCancelSwipe,
+                paletteCacheKey = paletteCacheKey
             )
         }
     }
@@ -84,38 +87,128 @@ fun LazyListScope.fullPlayerPlaybackSection(
         )
     }
 
-    item(key = "progress") {
-        // 播放器尚未拿到时长时退回歌曲详情里的时长
-        val displayDuration = if (duration > 0L) duration else (songState.songDetail?.dt ?: 0L)
-        ProgressSection(
-            currentPositionProvider = currentPositionProvider,
-            duration = displayDuration,
-            onSeek = onSeek
-        )
-    }
+    fullPlayerControlSection(
+        songState = songState,
+        currentPositionProvider = currentPositionProvider,
+        duration = duration,
+        onSeek = onSeek,
+        playWhenReady = playWhenReady,
+        onTogglePlay = onTogglePlay,
+        onPlayNext = onPlayNext,
+        onPlayPrevious = onPlayPrevious,
+        onToggleShuffle = onToggleShuffle,
+        onToggleRepeat = onToggleRepeat,
+        playMode = playMode,
+        playContext = playContext,
+        onDisableRoaming = onDisableRoaming,
+        onDisableIntelligence = onDisableIntelligence,
+        onOutputDeviceClick = onOutputDeviceClick,
+        onQueueClick = onQueueClick,
+        onShareClick = onShareClick,
+        connectedDevice = connectedDevice
+    )
+}
 
-    item(key = "controls") {
-        PlaybackControls(
-            isPlaying = playWhenReady,
+// 控件区（进度、播放控制、快捷操作）：竖屏下紧跟在单行歌词之后，
+// 横屏双栏下被搬到右栏顶部，与封面拆开渲染
+fun LazyListScope.fullPlayerControlSection(
+    songState: PlayerSongDetailState,
+    currentPositionProvider: () -> Long,
+    duration: Long,
+    onSeek: (Long) -> Unit,
+    playWhenReady: Boolean,
+    onTogglePlay: () -> Unit,
+    onPlayNext: () -> Unit,
+    onPlayPrevious: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    playMode: PlayMode,
+    playContext: String?,
+    onDisableRoaming: () -> Unit,
+    onDisableIntelligence: () -> Unit,
+    onOutputDeviceClick: () -> Unit,
+    onQueueClick: () -> Unit,
+    onShareClick: () -> Unit,
+    connectedDevice: AudioDeviceInfo? = null,
+    compact: Boolean = false
+) {
+    item(key = "progress") {
+        FullPlayerControlContent(
+            songState = songState,
+            currentPositionProvider = currentPositionProvider,
+            duration = duration,
+            onSeek = onSeek,
+            playWhenReady = playWhenReady,
             onTogglePlay = onTogglePlay,
             onPlayNext = onPlayNext,
             onPlayPrevious = onPlayPrevious,
             onToggleShuffle = onToggleShuffle,
             onToggleRepeat = onToggleRepeat,
             playMode = playMode,
-            isRoaming = playContext == "similar_roaming",
+            playContext = playContext,
             onDisableRoaming = onDisableRoaming,
-            isIntelligence = playContext == "intelligence",
-            onDisableIntelligence = onDisableIntelligence
-        )
-    }
-
-    item(key = "actions") {
-        ActionButtons(
+            onDisableIntelligence = onDisableIntelligence,
             onOutputDeviceClick = onOutputDeviceClick,
             onQueueClick = onQueueClick,
             onShareClick = onShareClick,
-            connectedDevice = connectedDevice
+            connectedDevice = connectedDevice,
+            compact = compact
         )
     }
+}
+
+@Composable
+fun FullPlayerControlContent(
+    songState: PlayerSongDetailState,
+    currentPositionProvider: () -> Long,
+    duration: Long,
+    onSeek: (Long) -> Unit,
+    playWhenReady: Boolean,
+    onTogglePlay: () -> Unit,
+    onPlayNext: () -> Unit,
+    onPlayPrevious: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    playMode: PlayMode,
+    playContext: String?,
+    onDisableRoaming: () -> Unit,
+    onDisableIntelligence: () -> Unit,
+    onOutputDeviceClick: () -> Unit,
+    onQueueClick: () -> Unit,
+    onShareClick: () -> Unit,
+    connectedDevice: AudioDeviceInfo? = null,
+    compact: Boolean = false
+) {
+    // 播放器尚未拿到时长时退回歌曲详情里的时长
+    val displayDuration = if (duration > 0L) duration else (songState.songDetail?.dt ?: 0L)
+    ProgressSection(
+        currentPositionProvider = currentPositionProvider,
+        duration = displayDuration,
+        onSeek = onSeek,
+        compact = compact,
+        chorusStartMs = songState.chorusStartMs
+    )
+
+    PlaybackControls(
+        isPlaying = playWhenReady,
+        onTogglePlay = onTogglePlay,
+        onPlayNext = onPlayNext,
+        onPlayPrevious = onPlayPrevious,
+        onToggleShuffle = onToggleShuffle,
+        onToggleRepeat = onToggleRepeat,
+        playMode = playMode,
+        isRoaming = playContext == "similar_roaming",
+        onDisableRoaming = onDisableRoaming,
+        isIntelligence = playContext == "intelligence",
+        onDisableIntelligence = onDisableIntelligence,
+        compact = compact
+    )
+
+    ActionButtons(
+        onOutputDeviceClick = onOutputDeviceClick,
+        onQueueClick = onQueueClick,
+        onShareClick = onShareClick,
+        connectedDevice = connectedDevice,
+        compact = compact
+    )
 }

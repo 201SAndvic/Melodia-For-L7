@@ -8,6 +8,7 @@ import com.lin0721.linmusic.core.model.CommentUser
 import com.lin0721.linmusic.core.network.ResourceProvider
 import com.lin0721.linmusic.core.network.toUserMessage
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,7 +62,23 @@ class CommentsSectionController(
     private var threadId: String = ""
     private var currentSortType: CommentSortType = CommentSortType.RECOMMEND
     private var currentPageNo: Int = 1
+    private var pageLoadJob: Job? = null
     private val sortCache = mutableMapOf<CommentSortType, TabCacheEntry>()
+
+    /** Stop automatic requests without disabling explicit retry/open actions. */
+    fun pauseLoadingFor(threadId: String) {
+        pageLoadJob?.cancel()
+        pageLoadJob = null
+        if (this.threadId != threadId) {
+            this.threadId = threadId
+            sortCache.clear()
+            currentPageNo = 1
+            _commentsState.value = CommentsState.Loading(sortType = currentSortType)
+        } else {
+            val current = _commentsState.value as? CommentsState.Success
+            if (current != null && current.isLoadingMore) _commentsState.value = current.copy(isLoadingMore = false)
+        }
+    }
 
     fun load(threadId: String) {
         if (this.threadId == threadId && _commentsState.value is CommentsState.Success) {
@@ -111,7 +128,8 @@ class CommentsSectionController(
         }
         val cursor = sortType.cursorFor(pageNo, PAGE_SIZE, previousCursor)
         val requestThreadId = threadId
-        scope.launch {
+        pageLoadJob?.cancel()
+        pageLoadJob = scope.launch {
             repository.getCommentsV2(requestThreadId, pageNo, PAGE_SIZE, cursor, sortType).collect { result ->
                 // 请求发出后 threadId 变了（切歌）或排序又被切换过，说明这次响应已经过期，丢弃不覆盖当前状态
                 if (requestThreadId != threadId || sortType != currentSortType) return@collect

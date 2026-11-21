@@ -62,7 +62,7 @@ fun SongInfo(
         ) {
             Icon(
                 if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = null,
+                contentDescription = if (isLiked) "移出我喜欢的音乐" else "加入我喜欢的音乐",
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)
             )

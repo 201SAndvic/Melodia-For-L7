@@ -18,6 +18,7 @@ import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.FlagSet
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
@@ -30,6 +31,7 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
+import androidx.media3.session.LyricInfoLegacyMetadataBridge
 import coil.Coil
 import coil.request.ImageRequest
 import com.lin0721.linmusic.MainActivity
@@ -45,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -67,9 +70,23 @@ class MelodiaPlaybackService : MediaSessionService() {
 
     private var player: Player? = null
     private var exoPlayer: ExoPlayer? = null
+    private var playbackStutterObserver: PlaybackStutterObserver? = null
+    private var audioOffloadController: AudioOffloadController? = null
     private var mediaSession: MediaSession? = null
     private var sessionActivityPendingIntent: PendingIntent? = null
     private var currentCoverBitmap: Bitmap? = null
+    private var lyricInfoPlatformController: android.media.session.MediaController? = null
+    private val lyricInfoPlatformCallback = object : android.media.session.MediaController.Callback() {
+        override fun onMetadataChanged(metadata: android.media.MediaMetadata?) {
+            // A delayed artwork load in Media3 can write an older lyric snapshot.
+            // Reconcile on that actual event, never with a periodic polling loop.
+            mediaSession?.let { session ->
+                if (LyricInfoLegacyMetadataBridge.refresh(session)) {
+                    com.lin0721.linmusic.core.log.PerformanceMonitor.mark("lyric_info_legacy", "published=true reason=platform_reconcile")
+                }
+            }
+        }
+    }
     private var notificationCallback: MediaNotification.Provider.Callback? = null
 
     private fun ensureNotificationChannel() {
@@ -132,11 +149,13 @@ class MelodiaPlaybackService : MediaSessionService() {
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
         val defaultDataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+            .setTransferListener(PlaybackStutterObserver.transfers)
 
         // 动态代理数据源，每次请求新数据源时获取最新配置并创建对应的源
         val dynamicDataSourceFactory = androidx.media3.datasource.DataSource.Factory {
+            val diagnosticStarted = if (com.lin0721.linmusic.core.log.PlaybackStutterDiagnostics.enabled) android.os.SystemClock.elapsedRealtime() else 0L
             val isCacheEnabled = runBlocking {
-                settingsPreferences.streamCacheEnabled.first()
+                settingsPreferences.streamCacheEnabled.first() || settingsPreferences.weakNetworkCacheEnabled.first()
             }
             if (isCacheEnabled) {
                 val maxSize = runBlocking {
@@ -145,11 +164,22 @@ class MelodiaPlaybackService : MediaSessionService() {
                 val cache = AudioCacheManager.getCache(this@MelodiaPlaybackService, maxSize)
                 CacheDataSource.Factory()
                     .setCache(cache)
+                    .setEventListener(object : CacheDataSource.EventListener {
+                        override fun onCachedBytesRead(cacheSizeBytes: Long, cachedBytesRead: Long) {
+                            com.lin0721.linmusic.core.log.PlaybackStutterDiagnostics.cacheRead(cachedBytesRead)
+                        }
+                        override fun onCacheIgnored(reason: Int) {
+                            com.lin0721.linmusic.core.log.PlaybackStutterDiagnostics.event("audio_cache_ignored", "reason=$reason")
+                        }
+                    })
                     .setUpstreamDataSourceFactory(defaultDataSourceFactory)
                     .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
                     .createDataSource()
             } else {
                 defaultDataSourceFactory.createDataSource()
+            }.also {
+                if (diagnosticStarted != 0L) com.lin0721.linmusic.core.log.PlaybackStutterDiagnostics.event("data_source_created",
+                    "cache=$isCacheEnabled elapsedMs=${android.os.SystemClock.elapsedRealtime() - diagnosticStarted}")
             }
         }
 
@@ -157,6 +187,21 @@ class MelodiaPlaybackService : MediaSessionService() {
             .setMediaSourceFactory(DefaultMediaSourceFactory(dynamicDataSourceFactory))
             .build()
         this.exoPlayer = localExoPlayer
+        audioOffloadController = AudioOffloadController(localExoPlayer)
+        serviceScope.launch { settingsPreferences.audioOffload.collect { audioOffloadController?.request(it) } }
+        playbackStutterObserver = PlaybackStutterObserver(localExoPlayer, this).also {
+            it.bind(serviceScope, settingsPreferences.playbackStutterDiagnosticsEnabled)
+        }
+        serviceScope.launch {
+            kotlinx.coroutines.flow.combine(settingsPreferences.playbackStutterDiagnosticsEnabled,
+                settingsPreferences.weakNetworkCacheEnabled, settingsPreferences.streamCacheEnabled,
+                settingsPreferences.dualDisplayEnabled, settingsPreferences.lyricInfoEnabled) { enabled, weak, stream, dual, lyric ->
+                listOf(enabled, weak, stream, dual, lyric)
+            }.distinctUntilChanged().collect { flags ->
+                com.lin0721.linmusic.core.log.PlaybackStutterDiagnostics.configuration(
+                    "weakCache=${flags[1]} streamCache=${flags[2]} dual=${flags[3]} lyricInfo=${flags[4]}")
+            }
+        }
 
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -186,6 +231,11 @@ class MelodiaPlaybackService : MediaSessionService() {
                 val metadata = mediaMetadata
                 for (listener in listeners) {
                     listener.onMediaMetadataChanged(metadata)
+                }
+                // Complete the Player listener contract for batched consumers.
+                val events = Player.Events(FlagSet.Builder().add(Player.EVENT_MEDIA_METADATA_CHANGED).build())
+                for (listener in listeners) {
+                    listener.onEvents(this, events)
                 }
             }
 
@@ -252,9 +302,18 @@ class MelodiaPlaybackService : MediaSessionService() {
             .setCallback(CustomSessionCallback())
             .setSessionActivity(pendingIntent)
             .build()
+        lyricInfoPlatformController = android.media.session.MediaController(this, mediaSession!!.platformToken).also {
+            it.registerCallback(lyricInfoPlatformCallback, android.os.Handler(mainLooper))
+        }
 
         externalLyricCoordinator.onMetadataChanged = {
             forwardingPlayer.notifyMetadataChanged()
+            // Media3 1.11.1 MediaMetadata.equals still ignores extras contents; its legacy
+            // adapter otherwise filters same-song lyric-only changes as duplicates.
+            mediaSession?.let { session ->
+                val refreshed = LyricInfoLegacyMetadataBridge.refresh(session)
+                com.lin0721.linmusic.core.log.PerformanceMonitor.mark("lyric_info_legacy", "published=$refreshed")
+            }
         }
 
         // 监听歌曲切换以更新控制栏上的红心图标及通知封面状态
@@ -282,11 +341,17 @@ class MelodiaPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         AppLogger.i(TAG, "Service onDestroy instanceId=${System.identityHashCode(this)}")
+        lyricInfoPlatformController?.unregisterCallback(lyricInfoPlatformCallback)
+        lyricInfoPlatformController = null
         externalLyricCoordinator.onMetadataChanged = null
         externalLyricCoordinator.release()
         playerManager.release()
         playerManager.saveState()
         serviceScope.cancel()
+        playbackStutterObserver?.unbind()
+        playbackStutterObserver = null
+        audioOffloadController?.release()
+        audioOffloadController = null
         notificationCallback = null
         currentCoverBitmap = null
         mediaSession?.run {
@@ -472,6 +537,9 @@ class MelodiaPlaybackService : MediaSessionService() {
 
     @OptIn(UnstableApi::class)
     private inner class MelodiaNotificationProvider : MediaNotification.Provider {
+        override fun getNotificationChannelInfo() =
+            MediaNotification.Provider.NotificationChannelInfo(PLAYBACK_CHANNEL_ID, "正在播放")
+
         override fun createNotification(
             session: MediaSession,
             customLayout: com.google.common.collect.ImmutableList<CommandButton>,

@@ -28,18 +28,19 @@ import com.lin0721.linmusic.BuildConfig
 import com.lin0721.linmusic.LocalBottomOverlayInset
 import com.lin0721.linmusic.R
 import com.lin0721.linmusic.core.log.AppLogger
+import com.lin0721.linmusic.core.preferences.SettingsPreferences
 import com.lin0721.linmusic.core.ui.components.ToastManager
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.DragHandleShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
-import com.lin0721.linmusic.core.update.UpdateManager
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutSettingsView(viewModel: SettingsViewModel) {
-    val context = LocalContext.current
-
     // 渲染"关于"子设置项
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(MelodiaSpacing.md),
@@ -70,33 +71,8 @@ fun AboutSettingsView(viewModel: SettingsViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        item {
-            val updateManager: UpdateManager = koinInject()
-            val autoCheckUpdateEnabled by viewModel.autoCheckUpdateEnabled.collectAsStateWithLifecycle()
-            val allowPrereleaseChannel by viewModel.allowPrereleaseChannel.collectAsStateWithLifecycle()
-
-            SettingsGroupCard("版本更新") {
-                SettingsRow(
-                    title = "检查更新",
-                    subtitle = "前往 GitHub 获取最新安装包",
-                    onClick = { updateManager.checkForUpdate(manual = true) }
-                )
-                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                SettingsSwitchRow(
-                    title = "自动检查更新",
-                    subtitle = "启动应用时后台检查一次更新",
-                    checked = autoCheckUpdateEnabled,
-                    onCheckedChange = { viewModel.updateAutoCheckUpdateEnabled(it) }
-                )
-                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                SettingsSwitchRow(
-                    title = "接收测试版更新",
-                    subtitle = "包含 beta/rc 预览版本，可能不稳定",
-                    checked = allowPrereleaseChannel,
-                    onCheckedChange = { viewModel.updateAllowPrereleaseChannel(it) }
-                )
-            }
-        }
+        // 车机自用分支：整组「版本更新」入口已移除。
+        // 提示升级装回的官方包会覆盖横屏/副屏适配与播放页封面改动，这里不再暴露任何检查/下载入口
 
         item {
             SettingsGroupCard("应用说明与协议") {
@@ -127,99 +103,6 @@ fun AboutSettingsView(viewModel: SettingsViewModel) {
             }
         }
 
-        item {
-            SettingsGroupCard("诊断与日志") {
-                val logLevelStr by viewModel.logLevel.collectAsStateWithLifecycle()
-                val currentLogLevel = runCatching { AppLogger.LogLevel.valueOf(logLevelStr) }
-                    .getOrDefault(AppLogger.LogLevel.WARN)
-                var showLogLevelSheet by remember { mutableStateOf(false) }
-
-                SettingsRow(
-                    title = "日志级别",
-                    subtitle = "当前: ${logLevelLabel(currentLogLevel)}，越详细越利于排查问题",
-                    onClick = { showLogLevelSheet = true }
-                )
-                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                SettingsRow(
-                    title = "导出并分享日志",
-                    subtitle = "当应用发生故障时，可将本地运行日志导出",
-                    onClick = {
-                        exportAndShareLogs(context)
-                    }
-                )
-                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                SettingsRow(
-                    title = "清空日志文件",
-                    subtitle = "清除本地保存的运行日志，清空后将无法再导出",
-                    onClick = {
-                        if (AppLogger.clearLogs()) {
-                            ToastManager.showToast("日志已清空")
-                        } else {
-                            ToastManager.showToast("清空日志失败")
-                        }
-                    }
-                )
-
-                if (showLogLevelSheet) {
-                    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                    ModalBottomSheet(
-                        onDismissRequest = { showLogLevelSheet = false },
-                        sheetState = sheetState,
-                        containerColor = MaterialTheme.colorScheme.background,
-                        shape = BottomSheetShape,
-                        dragHandle = {
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 12.dp, bottom = MelodiaSpacing.xs)
-                                    .width(36.dp)
-                                    .height(4.dp)
-                                    .clip(DragHandleShape)
-                                    .background(Color.White.copy(alpha = 0.3f))
-                            )
-                        }
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-                        ) {
-                            Text(
-                                text = "日志级别",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-                            )
-
-                            AppLogger.LogLevel.entries.forEach { level ->
-                                val isSelected = currentLogLevel == level
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            viewModel.updateLogLevel(level)
-                                            showLogLevelSheet = false
-                                        }
-                                        .padding(vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = logLevelLabel(level),
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 15.sp
-                                    )
-                                    if (isSelected) {
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         item {
             SettingsGroupCard("特别感谢") {
@@ -257,7 +140,7 @@ private fun appVersionLabel(): String {
     return if (isPrerelease) "Version $name（测试版）" else "Version $name"
 }
 
-private fun logLevelLabel(level: AppLogger.LogLevel): String = when (level) {
+internal fun logLevelLabel(level: AppLogger.LogLevel): String = when (level) {
     AppLogger.LogLevel.DEBUG -> "详细"
     AppLogger.LogLevel.INFO -> "标准"
     AppLogger.LogLevel.WARN -> "精简"

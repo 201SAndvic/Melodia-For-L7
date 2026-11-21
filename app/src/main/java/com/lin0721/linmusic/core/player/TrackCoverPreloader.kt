@@ -6,9 +6,12 @@ import coil.request.ImageRequest
 
 // 提前把封面塞进 Coil 缓存，切歌时直接命中避免空白
 class TrackCoverPreloader(private val context: Context) {
+    private var lastPreloadedUrl: String? = null
 
     fun preload(coverUrl: String) {
         if (coverUrl.isBlank()) return
+        if (lastPreloadedUrl == coverUrl) return
+        lastPreloadedUrl = coverUrl
         val imageRequest = ImageRequest.Builder(context)
             .data(coverUrl)
             .build()

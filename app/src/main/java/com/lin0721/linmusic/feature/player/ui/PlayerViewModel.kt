@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lin0721.linmusic.core.preferences.SettingsPreferences
+import com.lin0721.linmusic.core.preferences.FullPlayerCardLayout
+import com.lin0721.linmusic.core.preferences.FullPlayerCardSetting
 import com.lin0721.linmusic.core.auth.UserPreferences
 import com.lin0721.linmusic.core.download.DownloadTrackInfo
 import com.lin0721.linmusic.core.download.SongDownloadManager
@@ -39,6 +41,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.joinAll
@@ -65,6 +69,7 @@ data class ArtistCardItem(
 
 // 当前播放歌曲的详情聚合状态：歌词/歌曲详情/歌手资料等异步分别到达，各自保留独立的 loading/nullable 语义
 data class PlayerSongDetailState(
+    val chorusStartMs: Long? = null,
     val songDetail: Track? = null,
     val lyrics: List<LyricLine> = emptyList(),
     val isLyricsLoading: Boolean = false,
@@ -106,7 +111,8 @@ class PlayerViewModel(
     private val userPreferences: UserPreferences,
     private val settingsPreferences: SettingsPreferences,
     private val resourceProvider: ResourceProvider,
-    private val songDownloadManager: SongDownloadManager
+    private val songDownloadManager: SongDownloadManager,
+    private val toggleSongLike: com.lin0721.linmusic.core.songlike.ToggleSongLikeUseCase
 ) : ViewModel() {
 
     // 监听 WiFi 下的播放音质设置
@@ -122,6 +128,19 @@ class PlayerViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = "standard"
     )
+
+    // 全屏播放页信息卡片顺序与显隐
+    val fullPlayerCardLayout: StateFlow<List<FullPlayerCardSetting>> = settingsPreferences.fullPlayerCardLayout.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = FullPlayerCardLayout.DEFAULT
+    )
+
+    fun saveFullPlayerCardLayout(layout: List<FullPlayerCardSetting>) {
+        viewModelScope.launch {
+            settingsPreferences.saveFullPlayerCardLayout(layout)
+        }
+    }
 
     // 判断当前是否连接 WiFi
     fun isWifiConnected(): Boolean {
@@ -237,17 +256,18 @@ class PlayerViewModel(
         }
     }
 
+    private val pendingLikes = mutableSetOf<Long>()
     fun toggleLike() {
         val songId = currentSongId
-        if (songId <= 0L) return
-
-        val newLiked = !_songDetailState.value.isLiked
+        if (songId <= 0L || !pendingLikes.add(songId)) return
         viewModelScope.launch {
-            songLikeRepository.likeSong(songId, newLiked).collect { result ->
-                result.onFailure {
-                    _toastEvent.emit(it.toUserMessage(resourceProvider))
+            try {
+                if (userPreferences.userProfile.first() == null) {
+                    _toastEvent.emit("请先登录账号")
+                    return@launch
                 }
-            }
+                toggleSongLike(songId).onFailure { _toastEvent.emit(it.toUserMessage(resourceProvider)) }
+            } finally { pendingLikes.remove(songId) }
         }
     }
 
@@ -279,24 +299,47 @@ class PlayerViewModel(
     }
 
     private fun observeTrackChanges() {
+        val songIds = playerManager.currentTrack
+            .map { it?.mediaId?.toLongOrNull() ?: -1L }
+            .distinctUntilChanged()
+            .onEach { songId ->
+                currentSongId = songId
+                clearState(songId > 0L && songId in songLikeRepository.likedSongIds.value)
+                commentsController.pauseLoadingFor("R_SO_4_$songId")
+            }
+            .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
+        val policy = settingsPreferences.performanceOptimizations.map { it.cardLoadPolicy }.distinctUntilChanged()
+
         viewModelScope.launch {
-            playerManager.currentTrack
-                .map { it?.mediaId?.toLongOrNull() ?: -1L }
-                .distinctUntilChanged()
-                .collectLatest { songId ->
-                    if (songId != -1L && songId != currentSongId) {
-                        currentSongId = songId
-                        val isLiked = songId > 0L && songId in songLikeRepository.likedSongIds.value
-                        clearState(isLiked)
-                        // 全部挂在同一棵子协程树下并发拉取：下一首切歌到达时 collectLatest
-                        // 会把这整棵树一起取消，不需要每个加载函数各自手写 songId 比对防止过期数据写回
-                        coroutineScope {
-                            launch { loadLyrics(songId) }
-                            launch { loadSongDetail(songId) }
-                            launch { loadSongWiki(songId) }
-                            launch { commentsController.load("R_SO_4_$songId") }
-                        }
-                    }
+            songIds.collectLatest { songId ->
+                if (songId > 0) playerRepository.getChorusStartTime(songId).collect { result ->
+                    if (currentSongId == songId) _songDetailState.update { it.copy(chorusStartMs = result.getOrNull()) }
+                }
+            }
+        }
+
+        // Changing a card option must not clear/reload lyrics or other independent cards.
+        viewModelScope.launch {
+            songIds.collectLatest { songId -> if (songId != -1L) loadLyrics(songId) }
+        }
+        viewModelScope.launch {
+            songIds.combine(policy.map { it.artists }.distinctUntilChanged()) { id, enabled -> id to enabled }
+                .distinctUntilChanged().collectLatest { (id, enabled) ->
+                    if (id != -1L) loadSongDetail(id, enrichArtists = enabled)
+                }
+        }
+        viewModelScope.launch {
+            songIds.combine(policy.map { it.wiki }.distinctUntilChanged()) { id, enabled -> id to enabled }
+                .distinctUntilChanged().collectLatest { (id, enabled) ->
+                    if (id != -1L && enabled) loadSongWiki(id)
+                    else _songDetailState.update { it.copy(songWiki = null, isSongWikiLoading = false) }
+                }
+        }
+        viewModelScope.launch {
+            songIds.combine(policy.map { it.comments }.distinctUntilChanged()) { id, enabled -> id to enabled }
+                .distinctUntilChanged().collectLatest { (id, enabled) ->
+                    if (id != -1L && enabled) commentsController.load("R_SO_4_$id")
+                    else commentsController.pauseLoadingFor("R_SO_4_$id")
                 }
         }
     }
@@ -328,12 +371,12 @@ class PlayerViewModel(
         _songDetailState.update { it.copy(isLyricsLoading = false) }
     }
 
-    private suspend fun loadSongDetail(songId: Long) {
+    private suspend fun loadSongDetail(songId: Long, enrichArtists: Boolean = true) {
         playerRepository.getSongDetail(songId).collect { result ->
             result.onSuccess { track ->
                 _songDetailState.update { it.copy(songDetail = track) }
                 val validArtists = track.ar.filter { it.id > 0 }
-                if (validArtists.isNotEmpty()) {
+                if (validArtists.isNotEmpty() && enrichArtists) {
                     val initialItems = validArtists.map { ar ->
                         ArtistCardItem(
                             artistId = ar.id,

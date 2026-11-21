@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.lin0721.linmusic.core.log.AppLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 private const val TAG = "SettingsPreferences"
 
@@ -27,6 +28,12 @@ private val Context.settingsDataStore by preferencesDataStore(
 
 class SettingsPreferences(private val context: Context) {
 
+    val lyricInfoOutputSettings = context.settingsDataStore.data.map { it.readLyricInfoOutputSettings() }.distinctUntilChanged()
+
+    suspend fun updateLyricInfoOutputSettings(change: (LyricInfoOutputSettings) -> LyricInfoOutputSettings) {
+        context.settingsDataStore.edit { it.updateLyricInfoOutputSettings(change) }
+    }
+
     companion object {
         // Wi-Fi 播放音质 KEY，默认 "lossless"
         private val KEY_WIFI_QUALITY = stringPreferencesKey("wifi_quality")
@@ -38,6 +45,7 @@ class SettingsPreferences(private val context: Context) {
         private val KEY_DEFAULT_SEARCH_SOURCE = stringPreferencesKey("default_search_source")
         // 缓存开关 KEY，默认 false
         private val KEY_STREAM_CACHE_ENABLED = booleanPreferencesKey("stream_cache_enabled")
+        private val KEY_WEAK_NETWORK_CACHE_ENABLED = booleanPreferencesKey("weak_network_cache_enabled")
         // 音频缓存上限大小 KEY，默认 512MB
         private val KEY_AUDIO_CACHE_MAX_SIZE = longPreferencesKey("audio_cache_max_size")
         // 自定义下载目录（SAF tree Uri）
@@ -53,6 +61,7 @@ class SettingsPreferences(private val context: Context) {
         private val KEY_AUTO_PLAY_NEXT = booleanPreferencesKey("auto_play_next")
         // 与其他应用同时播放，默认 false
         private val KEY_PLAY_WITH_OTHER_APPS = booleanPreferencesKey("play_with_other_apps")
+        private val KEY_AUDIO_OFFLOAD = booleanPreferencesKey("audio_offload")
         // 默认播放顺序，默认 "loop" (列表循环)
         // 仅 Wi-Fi 网络下联网播放，默认 false
         private val KEY_WIFI_ONLY_PLAY = booleanPreferencesKey("wifi_only_play")
@@ -74,6 +83,8 @@ class SettingsPreferences(private val context: Context) {
         private val KEY_LYRIC_TEXT_COLOR = stringPreferencesKey("lyric_text_color")
         // 日志级别 KEY，默认 debug 包 "DEBUG"、release 包 "WARN"
         private val KEY_LOG_LEVEL = stringPreferencesKey("log_level")
+        private val KEY_PERFORMANCE_LOG_ENABLED = booleanPreferencesKey("performance_log_enabled")
+        private val KEY_PLAYBACK_STUTTER_DIAGNOSTICS = booleanPreferencesKey("playback_stutter_diagnostics")
         // 启动时自动检查更新，默认 true
         private val KEY_AUTO_CHECK_UPDATE = booleanPreferencesKey("auto_check_update")
         // 是否接收测试版（beta/rc）更新推送，默认 false 只接收正式版
@@ -82,6 +93,22 @@ class SettingsPreferences(private val context: Context) {
         private val KEY_IGNORED_UPDATE_TAG = stringPreferencesKey("ignored_update_tag")
         // 全屏歌词字体大小，默认 22sp
         private val KEY_FULL_SCREEN_LYRIC_TEXT_SIZE = intPreferencesKey("full_screen_lyric_text_size")
+
+        // 全屏歌词行间距 / 原词与翻译（音译）之间的间距，单位 dp
+        private val KEY_FULL_SCREEN_LYRIC_LINE_SPACING = intPreferencesKey("full_screen_lyric_line_spacing")
+        private val KEY_FULL_SCREEN_LYRIC_SECONDARY_SPACING = intPreferencesKey("full_screen_lyric_secondary_spacing")
+
+        // 全屏播放页信息卡片顺序与显隐，格式见 FullPlayerCardLayout
+        private val KEY_FULL_PLAYER_CARD_LAYOUT = stringPreferencesKey("full_player_card_layout")
+        // 应用导航快照：用于进程被桌面回收后恢复上次打开的页面与 tab 栈
+        private val KEY_NAVIGATION_STATE = stringPreferencesKey("navigation_state")
+        private val KEY_PLAYER_OPEN = booleanPreferencesKey("player_open")
+        private val KEY_DUAL_DISPLAY_ENABLED = booleanPreferencesKey("dual_display_enabled")
+        private val KEY_DUAL_DISPLAY_COVER_GESTURE = booleanPreferencesKey("dual_display_cover_gesture")
+        private val KEY_DUAL_DISPLAY_BACKEND = stringPreferencesKey("dual_display_backend")
+        private val KEY_DUAL_DISPLAY_ID = intPreferencesKey("dual_display_id")
+        private val KEY_DUAL_DISPLAY_OPEN_PLAYER = booleanPreferencesKey("dual_display_open_player")
+        private val KEY_DUAL_DISPLAY_CONTENT = stringPreferencesKey("dual_display_content")
         // 全屏歌词对齐方式，默认 "left"
         private val KEY_FULL_SCREEN_LYRIC_ALIGNMENT = stringPreferencesKey("full_screen_lyric_alignment")
         // 全屏歌词是否显示双语翻译，默认 true
@@ -144,7 +171,20 @@ class SettingsPreferences(private val context: Context) {
         }
     }
 
+    // Opt-in; system/format support is checked by the audio engine, not assumed.
+    val audioOffload: Flow<Boolean> = context.settingsDataStore.data.map { it[KEY_AUDIO_OFFLOAD] ?: false }.distinctUntilChanged()
+    suspend fun saveAudioOffload(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_AUDIO_OFFLOAD] = enabled }
+    }
+
     // 缓存开关设置 Flow
+    val weakNetworkCacheEnabled: Flow<Boolean> = context.settingsDataStore.data
+        .map { it[KEY_WEAK_NETWORK_CACHE_ENABLED] ?: true }.distinctUntilChanged()
+
+    suspend fun saveWeakNetworkCacheEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_WEAK_NETWORK_CACHE_ENABLED] = enabled }
+    }
+
     val streamCacheEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
         prefs[KEY_STREAM_CACHE_ENABLED] ?: false
     }
@@ -343,6 +383,23 @@ class SettingsPreferences(private val context: Context) {
         }
     }
 
+    val playbackStutterDiagnosticsEnabled: Flow<Boolean> = context.settingsDataStore.data
+        .map { it[KEY_PLAYBACK_STUTTER_DIAGNOSTICS] ?: false }.distinctUntilChanged()
+
+    suspend fun savePlaybackStutterDiagnosticsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_PLAYBACK_STUTTER_DIAGNOSTICS] = enabled }
+    }
+
+    val performanceLogEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[KEY_PERFORMANCE_LOG_ENABLED] ?: false
+    }
+
+    suspend fun savePerformanceLogEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_PERFORMANCE_LOG_ENABLED] = enabled
+        }
+    }
+
     // 启动时自动检查更新 Flow
     val autoCheckUpdateEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
         prefs[KEY_AUTO_CHECK_UPDATE] ?: true
@@ -385,6 +442,118 @@ class SettingsPreferences(private val context: Context) {
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_FULL_SCREEN_LYRIC_TEXT_SIZE] = size
         }
+    }
+
+    // 全屏歌词行间距 Flow（dp）
+    val fullScreenLyricLineSpacing: Flow<Int> = context.settingsDataStore.data.map { prefs ->
+        prefs[KEY_FULL_SCREEN_LYRIC_LINE_SPACING] ?: 24
+    }
+
+    suspend fun saveFullScreenLyricLineSpacing(spacing: Int) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_FULL_SCREEN_LYRIC_LINE_SPACING] = spacing
+        }
+    }
+
+    // 全屏歌词原词与翻译/音译之间的间距 Flow（dp）
+    val fullScreenLyricSecondarySpacing: Flow<Int> = context.settingsDataStore.data.map { prefs ->
+        prefs[KEY_FULL_SCREEN_LYRIC_SECONDARY_SPACING] ?: 6
+    }
+
+    suspend fun saveFullScreenLyricSecondarySpacing(spacing: Int) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_FULL_SCREEN_LYRIC_SECONDARY_SPACING] = spacing
+        }
+    }
+
+    // 全屏播放页信息卡片顺序与显隐 Flow
+    val fullPlayerCardLayout: Flow<List<FullPlayerCardSetting>> = context.settingsDataStore.data.map { prefs ->
+        FullPlayerCardLayout.decode(prefs[KEY_FULL_PLAYER_CARD_LAYOUT])
+    }
+
+    suspend fun saveFullPlayerCardLayout(layout: List<FullPlayerCardSetting>) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_FULL_PLAYER_CARD_LAYOUT] = FullPlayerCardLayout.encode(layout)
+        }
+    }
+
+    // 最近一次应用导航快照。null 表示从未保存过，调用方应使用默认主页。
+    val navigationState: Flow<String?> = context.settingsDataStore.data.map { prefs ->
+        prefs[KEY_NAVIGATION_STATE]
+    }
+
+    suspend fun saveNavigationState(snapshot: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_NAVIGATION_STATE] = snapshot
+        }
+    }
+
+    val playerOpen: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[KEY_PLAYER_OPEN] ?: false
+    }
+
+    suspend fun savePlayerOpen(open: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_PLAYER_OPEN] = open
+        }
+    }
+
+    val dualDisplayEnabled: Flow<Boolean> = context.settingsDataStore.data.map { it[KEY_DUAL_DISPLAY_ENABLED] ?: false }
+    val dualDisplayCoverGestureEnabled: Flow<Boolean> = context.settingsDataStore.data
+        .map { it[KEY_DUAL_DISPLAY_COVER_GESTURE] ?: false }.distinctUntilChanged()
+
+    suspend fun saveDualDisplayCoverGestureEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_DUAL_DISPLAY_COVER_GESTURE] = enabled }
+    }
+    val performanceOptimizations: Flow<PerformanceOptimizations> = context.settingsDataStore.data
+        .map { it.readPerformanceOptimizations() }
+        .distinctUntilChanged()
+
+    suspend fun savePerformanceOptimization(option: PerformanceOptimization, enabled: Boolean) {
+        context.settingsDataStore.edit { it.writePerformanceOptimization(option, enabled) }
+    }
+    val displayLyricCardColors: Flow<DisplayLyricCardColors> = context.settingsDataStore.data
+        .map { it.readDisplayLyricCardColors() }.distinctUntilChanged()
+
+    suspend fun saveLyricCardColorField(isPassenger: Boolean, field: LyricCardColorField, value: Int) {
+        context.settingsDataStore.edit { it.updateLyricCardColors(isPassenger, field, value) }
+    }
+
+    suspend fun saveLyricCardColorPreset(isPassenger: Boolean, preset: LyricCardColorSettings) {
+        context.settingsDataStore.edit { it.writeLyricCardColors(isPassenger, preset) }
+    }
+    val dualDisplayId: Flow<Int> = context.settingsDataStore.data.map { it[KEY_DUAL_DISPLAY_ID] ?: 1 }
+    val dualDisplayOpenPlayer: Flow<Boolean> = context.settingsDataStore.data.map { it[KEY_DUAL_DISPLAY_OPEN_PLAYER] ?: true }
+    // 副屏每次由主屏启动/恢复时显示的内容：目前支持 player（播放页）和 home（主页）。
+    val dualDisplayContent: Flow<String> = context.settingsDataStore.data.map { it[KEY_DUAL_DISPLAY_CONTENT] ?: "player" }
+
+    suspend fun saveDualDisplayEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit {
+            it[KEY_DUAL_DISPLAY_BACKEND] = "presentation"
+            it[KEY_DUAL_DISPLAY_ENABLED] = enabled
+        }
+    }
+
+    /** Do not replay the old broken auto-launch toggle immediately after upgrade. */
+    suspend fun migrateDualDisplayToPresentation() {
+        context.settingsDataStore.edit {
+            if (it[KEY_DUAL_DISPLAY_BACKEND] != "presentation") {
+                it[KEY_DUAL_DISPLAY_BACKEND] = "presentation"
+                it[KEY_DUAL_DISPLAY_ENABLED] = false
+            }
+        }
+    }
+
+    suspend fun saveDualDisplayId(displayId: Int) {
+        context.settingsDataStore.edit { it[KEY_DUAL_DISPLAY_ID] = displayId }
+    }
+
+    suspend fun saveDualDisplayOpenPlayer(open: Boolean) {
+        context.settingsDataStore.edit { it[KEY_DUAL_DISPLAY_OPEN_PLAYER] = open }
+    }
+
+    suspend fun saveDualDisplayContent(content: String) {
+        context.settingsDataStore.edit { it[KEY_DUAL_DISPLAY_CONTENT] = content }
     }
 
     // 全屏歌词对齐方式 Flow

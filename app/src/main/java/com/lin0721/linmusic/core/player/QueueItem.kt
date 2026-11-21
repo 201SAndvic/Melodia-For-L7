@@ -17,7 +17,7 @@ data class QueueItem(
     // 本地外部音频 Uri，非空时直接本地播放
     val localUri: String? = null
 ) {
-    fun toMediaItem(url: String, playContext: String? = null, artworkUri: String? = coverUrl): MediaItem {
+    fun toMediaItem(url: String, playContext: String? = null, artworkUri: String? = coverUrl, customCacheKey: String? = null): MediaItem {
         val bundle = Bundle().apply {
             putLong("songId", songId)
             if (playContext != null) putString("playContext", playContext)
@@ -31,6 +31,7 @@ data class QueueItem(
         return MediaItem.Builder()
             .setUri(url)
             .setMediaId(songId.toString())
+            .setCustomCacheKey(customCacheKey)
             .setMediaMetadata(metadata)
             .build()
     }

@@ -46,6 +46,8 @@ import com.lin0721.linmusic.core.ui.theme.InfoCardRadius
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
 import com.lin0721.linmusic.core.ui.theme.TextGray
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 @Composable
 fun SongDetailCard(
@@ -169,6 +171,7 @@ private fun SongCreatorsSheet(
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         containerColor = BackgroundDark,
         shape = BottomSheetShape,
@@ -183,42 +186,45 @@ private fun SongCreatorsSheet(
             )
         }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = MelodiaSpacing.md)
-        ) {
-            Text(
-                text = "制作信息",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-            creatorRoles.forEach { role ->
-                Row(
+        MelodiaSheetDensity {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = MelodiaSpacing.xs),
-                    verticalAlignment = Alignment.Top
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = MelodiaSpacing.md)
                 ) {
                     Text(
-                        text = role.roleName,
-                        color = TextGray.copy(alpha = 0.6f),
-                        fontSize = 14.sp,
-                        modifier = Modifier.width(70.dp)
-                    )
-                    Text(
-                        text = role.artistNames.joinToString(" / "),
+                        text = "制作信息",
                         color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f)
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
                     )
+                    creatorRoles.forEach { role ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = MelodiaSpacing.xs),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = role.roleName,
+                                color = TextGray.copy(alpha = 0.6f),
+                                fontSize = 14.sp,
+                                modifier = Modifier.width(70.dp)
+                            )
+                            Text(
+                                text = role.artistNames.joinToString(" / "),
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
-            }
+
         }
     }
 }

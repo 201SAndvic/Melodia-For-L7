@@ -24,7 +24,8 @@ object AppLogger {
     private var currentLevel: LogLevel = defaultLevel
 
     private val logScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val logChannel = Channel<String>(capacity = 1000)
+    private data class PendingLog(val text: String? = null, val flushed: CompletableDeferred<Unit>? = null)
+    private val logChannel = Channel<PendingLog>(capacity = 1000)
 
     private var logDir: File? = null
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
@@ -34,15 +35,20 @@ object AppLogger {
             if (!exists()) mkdirs()
         }
 
-        currentLevel = runCatching {
-            val saved = runBlocking { SettingsPreferences(context).logLevel.first() }
-            LogLevel.valueOf(saved)
-        }.onFailure { w(TAG, "读取日志级别设置失败，使用默认值", it) }.getOrDefault(defaultLevel)
+        // 日志级别改为异步读取：原先在主线程 runBlocking 等一次 DataStore 读盘，
+        // 这是 Application.onCreate 里的同步磁盘 IO，车机这类慢存储上会直接拖慢冷启动。
+        // 读到之前先用默认级别，读到后再切换，行为上只差最初几毫秒的日志级别。
+        logScope.launch {
+            currentLevel = runCatching {
+                LogLevel.valueOf(SettingsPreferences(context).logLevel.first())
+            }.onFailure { w(TAG, "读取日志级别设置失败，使用默认值", it) }.getOrDefault(defaultLevel)
+        }
 
         // 启动后台单协程，以非阻塞管道形式执行磁盘写入
         logScope.launch {
-            for (logLine in logChannel) {
-                writeLogToFile(logLine)
+            for (entry in logChannel) {
+                entry.text?.let(::writeLogToFile)
+                entry.flushed?.complete(Unit)
             }
         }
     }
@@ -79,9 +85,23 @@ object AppLogger {
     private fun isLoggable(level: LogLevel) = level.priority >= currentLevel.priority
 
     private fun log(level: String, tag: String, msg: String) {
-        val time = dateFormat.format(Date())
+        val time = synchronized(dateFormat) { dateFormat.format(Date()) }
         val formattedMsg = "[$time][$level][$tag] $msg\n"
-        logChannel.trySend(formattedMsg)
+        logChannel.trySend(PendingLog(text = formattedMsg))
+    }
+
+    /** Export waits for queued snapshots to reach disk, instead of exporting stale files. */
+    suspend fun flush() {
+        withTimeoutOrNull(3_000L) {
+            val done = CompletableDeferred<Unit>()
+            logChannel.send(PendingLog(flushed = done))
+            done.await()
+        }
+    }
+
+    fun performance(msg: String) {
+        Log.i("MelodiaPerf", msg)
+        log("P", "MelodiaPerf", msg)
     }
 
     private fun writeLogToFile(text: String) {

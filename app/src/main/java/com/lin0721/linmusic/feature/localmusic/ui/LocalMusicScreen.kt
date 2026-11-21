@@ -104,6 +104,8 @@ import com.lin0721.linmusic.feature.playlist.ui.OptionRow
 import com.lin0721.linmusic.feature.playlist.ui.PlaylistSongOptionsSheet
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 private const val SKELETON_ROW_COUNT = 8
 
@@ -564,91 +566,95 @@ fun LocalMusicScreen(
     if (showImportSheet) {
         val importSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
+            sheetMaxWidth = MelodiaSheetWidth,
             onDismissRequest = { showImportSheet = false },
             sheetState = importSheetState,
             containerColor = BackgroundDark,
             shape = BottomSheetShape,
             dragHandle = { MelodiaDragHandle() }
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MelodiaSpacing.md)
-                    .padding(bottom = MelodiaSpacing.xl)
-            ) {
-                Text(
-                    text = "导入歌曲",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = MelodiaSpacing.sm, vertical = MelodiaSpacing.sm)
-                )
-                Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(PillRadius))
-                        .pressable(MelodiaPress.Row) {
-                            showImportSheet = false
-                            importFilesLauncher.launch(arrayOf("audio/*"))
+            MelodiaSheetDensity {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = MelodiaSpacing.md)
+                                .padding(bottom = MelodiaSpacing.xl)
+                        ) {
+                            Text(
+                                text = "导入歌曲",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = MelodiaSpacing.sm, vertical = MelodiaSpacing.sm)
+                            )
+                            Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(PillRadius))
+                                    .pressable(MelodiaPress.Row) {
+                                        showImportSheet = false
+                                        importFilesLauncher.launch(arrayOf("audio/*"))
+                                    }
+                                    .padding(horizontal = MelodiaSpacing.md, vertical = MelodiaSpacing.md),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.LibraryMusic,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(MelodiaSpacing.md))
+                                Column {
+                                    Text(
+                                        text = "选择音频文件",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "从系统存储中批量多选音频文件导入",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(PillRadius))
+                                    .pressable(MelodiaPress.Row) {
+                                        showImportSheet = false
+                                        importFolderLauncher.launch(null)
+                                    }
+                                    .padding(horizontal = MelodiaSpacing.md, vertical = MelodiaSpacing.md),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(MelodiaSpacing.md))
+                                Column {
+                                    Text(
+                                        text = "选择文件夹",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "自动递归扫描并导入文件夹内的全部音频",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
-                        .padding(horizontal = MelodiaSpacing.md, vertical = MelodiaSpacing.md),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.LibraryMusic,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(MelodiaSpacing.md))
-                    Column {
-                        Text(
-                            text = "选择音频文件",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "从系统存储中批量多选音频文件导入",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(PillRadius))
-                        .pressable(MelodiaPress.Row) {
-                            showImportSheet = false
-                            importFolderLauncher.launch(null)
-                        }
-                        .padding(horizontal = MelodiaSpacing.md, vertical = MelodiaSpacing.md),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Folder,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(MelodiaSpacing.md))
-                    Column {
-                        Text(
-                            text = "选择文件夹",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "自动递归扫描并导入文件夹内的全部音频",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+
             }
         }
     }

@@ -52,7 +52,8 @@ class HomeViewModel(
     private val resourceProvider: ResourceProvider,
     private val loadLikedSongIdsUseCase: LoadLikedSongIdsUseCase,
     private val songLikeRepository: SongLikeRepository,
-    private val songCollectDelegate: SongCollectDelegate
+    private val songCollectDelegate: SongCollectDelegate,
+    private val toggleSongLikeAction: com.lin0721.linmusic.core.songlike.ToggleSongLikeUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -62,13 +63,27 @@ class HomeViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _toastEvent = MutableSharedFlow<String>()
+    private val pendingLikes = mutableSetOf<Long>()
+    fun toggleSongLike(songId: Long) {
+        if (songId <= 0 || !pendingLikes.add(songId)) return
+        viewModelScope.launch {
+            try {
+                if (userPreferences.userProfile.first() == null) {
+                    com.lin0721.linmusic.core.ui.components.ToastManager.showToast("请先登录账号")
+                    return@launch
+                }
+                toggleSongLikeAction(songId).onFailure {
+                    com.lin0721.linmusic.core.ui.components.ToastManager.showToast(it.toUserMessage(resourceProvider))
+                }
+            } finally { pendingLikes.remove(songId) }
+        }
+    }
     val toastEvent: SharedFlow<String> = _toastEvent.asSharedFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    // mini 栏"收藏到歌单"弹层，跟全屏播放页共用同一套 SongCollectDelegate 机制，各自持一份独立实例；
-    // 用 StateFlow 而不是普通 Set，mini 栏爱心图标要跟着这份数据变化重组
+    // Global liked state drives mini/full hearts on both display owners.
     val likedSongIds: StateFlow<Set<Long>> = songLikeRepository.likedSongIds
     val collectState: StateFlow<PlaylistCollectState> = songCollectDelegate.state
 

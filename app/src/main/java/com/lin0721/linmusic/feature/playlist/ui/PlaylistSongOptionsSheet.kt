@@ -28,6 +28,8 @@ import com.lin0721.linmusic.core.ui.components.MelodiaDragHandle
 import com.lin0721.linmusic.core.ui.components.ToastManager
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // ────────────────────────────────────────────────────────────────────────────
 // 歌曲"更多操作"弹层（下一首播放/喜欢/收藏到歌单/歌手/专辑）
@@ -57,164 +59,168 @@ fun PlaylistSongOptionsSheet(
     extraOptions: @Composable ColumnScope.() -> Unit = {}
 ) {
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = MelodiaSpacing.md)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val coverModel = remember(track.al.picUrl) {
-                    val url = track.al.picUrl
-                    if (url.startsWith("http://") || url.startsWith("https://")) {
-                        "$url?param=150y150"
-                    } else {
-                        url
-                    }
-                }
-                SubcomposeAsyncImage(
-                    model = coverModel,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    loading = { CoverPlaceholder() },
-                    error = { CoverPlaceholder() },
+        MelodiaSheetDensity {
+                Column(
                     modifier = Modifier
-                        .size(54.dp)
-                        .clip(MaterialTheme.shapes.small)
-                )
-                Spacer(modifier = Modifier.width(MelodiaSpacing.md))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = track.name,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
-                    Text(
-                        text = track.ar.joinToString(" • ") { it.name },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            HorizontalDivider(
-                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
-            )
-
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OptionRow(
-                    icon = Icons.AutoMirrored.Filled.QueueMusic,
-                    text = "下一首播放",
-                    onClick = {
-                        onDismiss()
-                        onAddToPlayNext(track)
-                    }
-                )
-
-                val likeIcon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder
-                val likeIconTint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                val likeText = if (isLiked) "取消喜欢" else "喜欢"
-
-                OptionRow(
-                    icon = likeIcon,
-                    text = likeText,
-                    iconTint = likeIconTint,
-                    onClick = {
-                        onDismiss()
-                        if (!isLoggedIn) {
-                            onRequireLogin()
-                        } else {
-                            onToggleLike(track.id, !isLiked)
-                        }
-                    }
-                )
-
-                OptionRow(
-                    icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                    text = "收藏到歌单",
-                    onClick = {
-                        onDismiss()
-                        if (!isLoggedIn) {
-                            onRequireLogin()
-                        } else {
-                            onCollectClick(track.id)
-                        }
-                    }
-                )
-
-                if (onDownloadClick != null) {
-                    OptionRow(
-                        icon = Icons.Default.Download,
-                        text = "下载",
-                        onClick = {
-                            onDismiss()
-                            onDownloadClick(track)
-                        }
-                    )
-                }
-
-                if (showArtistOption) {
-                    val artistsText = track.ar.joinToString(" • ") { it.name }
-                    OptionRow(
-                        icon = Icons.Default.Person,
-                        text = "歌手: $artistsText",
-                        onClick = {
-                            onDismiss()
-                            val artistId = track.ar.firstOrNull()?.id ?: 0L
-                            if (artistId > 0) {
-                                onArtistClick(artistId)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = MelodiaSpacing.md)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val coverModel = remember(track.al.picUrl) {
+                            val url = track.al.picUrl
+                            if (url.startsWith("http://") || url.startsWith("https://")) {
+                                "$url?param=150y150"
                             } else {
-                                ToastManager.showToast("暂无歌手信息")
+                                url
                             }
                         }
-                    )
-                }
-
-                if (canRemoveFromPlaylist) {
-                    OptionRow(
-                        icon = Icons.Default.Delete,
-                        text = "从歌单中删除",
-                        onClick = {
-                            onDismiss()
-                            onRemoveFromPlaylist(track.id)
-                        }
-                    )
-                }
-
-                OptionRow(
-                    icon = Icons.Default.Album,
-                    text = "专辑: ${track.al.name}",
-                    onClick = {
-                        onDismiss()
-                        if (track.al.id > 0) {
-                            onAlbumClick(track.al.id)
-                        } else {
-                            ToastManager.showToast("暂无专辑信息")
+                        SubcomposeAsyncImage(
+                            model = coverModel,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            loading = { CoverPlaceholder() },
+                            error = { CoverPlaceholder() },
+                            modifier = Modifier
+                                .size(54.dp)
+                                .clip(MaterialTheme.shapes.small)
+                        )
+                        Spacer(modifier = Modifier.width(MelodiaSpacing.md))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.name,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
+                            Text(
+                                text = track.ar.joinToString(" • ") { it.name },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
-                )
 
-                extraOptions()
-            }
+                    HorizontalDivider(
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OptionRow(
+                            icon = Icons.AutoMirrored.Filled.QueueMusic,
+                            text = "下一首播放",
+                            onClick = {
+                                onDismiss()
+                                onAddToPlayNext(track)
+                            }
+                        )
+
+                        val likeIcon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder
+                        val likeIconTint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        val likeText = if (isLiked) "取消喜欢" else "喜欢"
+
+                        OptionRow(
+                            icon = likeIcon,
+                            text = likeText,
+                            iconTint = likeIconTint,
+                            onClick = {
+                                onDismiss()
+                                if (!isLoggedIn) {
+                                    onRequireLogin()
+                                } else {
+                                    onToggleLike(track.id, !isLiked)
+                                }
+                            }
+                        )
+
+                        OptionRow(
+                            icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                            text = "收藏到歌单",
+                            onClick = {
+                                onDismiss()
+                                if (!isLoggedIn) {
+                                    onRequireLogin()
+                                } else {
+                                    onCollectClick(track.id)
+                                }
+                            }
+                        )
+
+                        if (onDownloadClick != null) {
+                            OptionRow(
+                                icon = Icons.Default.Download,
+                                text = "下载",
+                                onClick = {
+                                    onDismiss()
+                                    onDownloadClick(track)
+                                }
+                            )
+                        }
+
+                        if (showArtistOption) {
+                            val artistsText = track.ar.joinToString(" • ") { it.name }
+                            OptionRow(
+                                icon = Icons.Default.Person,
+                                text = "歌手: $artistsText",
+                                onClick = {
+                                    onDismiss()
+                                    val artistId = track.ar.firstOrNull()?.id ?: 0L
+                                    if (artistId > 0) {
+                                        onArtistClick(artistId)
+                                    } else {
+                                        ToastManager.showToast("暂无歌手信息")
+                                    }
+                                }
+                            )
+                        }
+
+                        if (canRemoveFromPlaylist) {
+                            OptionRow(
+                                icon = Icons.Default.Delete,
+                                text = "从歌单中删除",
+                                onClick = {
+                                    onDismiss()
+                                    onRemoveFromPlaylist(track.id)
+                                }
+                            )
+                        }
+
+                        OptionRow(
+                            icon = Icons.Default.Album,
+                            text = "专辑: ${track.al.name}",
+                            onClick = {
+                                onDismiss()
+                                if (track.al.id > 0) {
+                                    onAlbumClick(track.al.id)
+                                } else {
+                                    ToastManager.showToast("暂无专辑信息")
+                                }
+                            }
+                        )
+
+                        extraOptions()
+                    }
+                }
+
         }
     }
 }

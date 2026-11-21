@@ -17,6 +17,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,10 +32,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lin0721.linmusic.core.ui.components.PlaylistCollectSheet
 import com.lin0721.linmusic.core.ui.components.ProfileSidebar
 import com.lin0721.linmusic.core.ui.components.ToastManager
 import com.lin0721.linmusic.core.ui.interaction.pressable
+import com.lin0721.linmusic.core.ui.layout.MelodiaWindowProvider
+import com.lin0721.linmusic.core.ui.layout.LocalPerformanceOptimizations
+import com.lin0721.linmusic.core.preferences.PerformanceOptimizations
 import com.lin0721.linmusic.core.ui.theme.MelodiaPress
 import com.lin0721.linmusic.core.ui.theme.BackgroundDark
 import com.lin0721.linmusic.core.update.UpdateManager
@@ -41,16 +45,44 @@ import com.lin0721.linmusic.core.update.UpdateUiState
 import com.lin0721.linmusic.core.preferences.SettingsPreferences
 import com.lin0721.linmusic.feature.home.ui.HomeViewModel
 import com.lin0721.linmusic.feature.settings.ui.UpdateDialog
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
+import kotlinx.coroutines.flow.first
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
 private val SidebarWidth = 310.dp
 
+// 顶层组合：先按屏幕尺寸建立窗口断点（含超宽屏的密度放大），再进入应用本体
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun MelodiaApp() {
+fun MelodiaApp(
+    isSecondaryDisplay: Boolean = false,
+    openPlayerOnSecondaryStart: Boolean = false,
+    secondaryRefreshToken: Int = 0
+) {
+    val preferences: SettingsPreferences = koinInject()
+    val optimizations by preferences.performanceOptimizations.collectAsStateWithLifecycle(initialValue = PerformanceOptimizations())
+    val cardColors by preferences.displayLyricCardColors.collectAsStateWithLifecycle(initialValue = null)
+    // Avoid a bright original-color frame while persisted dim/disabled settings
+    // are loading after process recreation. The rest of the app stays visible.
+    val effectiveCardColors = cardColors ?: com.lin0721.linmusic.core.preferences.DisplayLyricCardColors()
+    val currentView = androidx.compose.ui.platform.LocalView.current
+    val passenger = isSecondaryDisplay || (currentView.display?.displayId?.let { it != android.view.Display.DEFAULT_DISPLAY } ?: false)
+    CompositionLocalProvider(LocalPerformanceOptimizations provides optimizations,
+        com.lin0721.linmusic.core.ui.layout.LocalDisplayLyricCardColors provides effectiveCardColors,
+        com.lin0721.linmusic.core.ui.layout.LocalPassengerDisplay provides passenger) {
+        MelodiaWindowProvider {
+            MelodiaAppContent(isSecondaryDisplay, openPlayerOnSecondaryStart, secondaryRefreshToken)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+private fun MelodiaAppContent(
+    isSecondaryDisplay: Boolean,
+    openPlayerOnSecondaryStart: Boolean,
+    secondaryRefreshToken: Int
+) {
     val viewModel: HomeViewModel = koinViewModel()
     val settingsPreferences: SettingsPreferences = koinInject()
     val showCreateEntry by settingsPreferences.showCreateEntry.collectAsStateWithLifecycle(initialValue = true)
@@ -64,13 +96,66 @@ fun MelodiaApp() {
     val currentPositionProvider = { currentPositionState.value }
     val duration by viewModel.playerManager.duration.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
-    val collectState by viewModel.collectState.collectAsStateWithLifecycle()
     val likedSongIds by viewModel.likedSongIds.collectAsStateWithLifecycle()
     val isMiniPlayerLiked = currentTrack?.mediaId?.toLongOrNull()?.let { it in likedSongIds } ?: false
 
     val playerSheet = rememberMelodiaPlayerSheetState()
     val navigation = rememberMelodiaNavigationState()
     val sidebar = rememberMelodiaSidebarState(SidebarWidth)
+    var navigationPersistenceReady by remember { mutableStateOf(isSecondaryDisplay) }
+    var restorePlayerOpen by remember { mutableStateOf<Boolean?>(null) }
+    var playerPersistenceReady by remember { mutableStateOf(false) }
+
+    // rememberSaveable 只能覆盖 Activity 重建；车机桌面切走后进程可能被回收，
+    // 因此再把三条导航栈写入 DataStore，回来时恢复用户最后打开的界面。
+    LaunchedEffect(navigation) {
+        if (isSecondaryDisplay) return@LaunchedEffect
+        val persisted = settingsPreferences.navigationState.first()
+        navigation.restoreFromPersistence(persisted)
+        navigationPersistenceReady = true
+    }
+    LaunchedEffect(navigation, navigation.revision, navigationPersistenceReady) {
+        if (navigationPersistenceReady && !isSecondaryDisplay) {
+            settingsPreferences.saveNavigationState(navigation.snapshotForPersistence())
+        }
+    }
+    LaunchedEffect(Unit) {
+        if (isSecondaryDisplay) return@LaunchedEffect
+        restorePlayerOpen = settingsPreferences.playerOpen.first()
+        if (restorePlayerOpen == false) playerPersistenceReady = true
+    }
+    LaunchedEffect(restorePlayerOpen, currentTrack?.mediaId) {
+        if (restorePlayerOpen == true && currentTrack != null) {
+            playerSheet.animateTo(true, 0f)
+            restorePlayerOpen = false
+            playerPersistenceReady = true
+        }
+    }
+    LaunchedEffect(playerSheet.isOpen, playerPersistenceReady) {
+        if (playerPersistenceReady && !isSecondaryDisplay) {
+            settingsPreferences.savePlayerOpen(playerSheet.isOpen)
+        }
+    }
+    var secondaryStartApplied by remember(secondaryRefreshToken) { mutableStateOf(false) }
+    LaunchedEffect(isSecondaryDisplay, openPlayerOnSecondaryStart, secondaryRefreshToken,
+        currentTrack != null, playerSheet.screenHeightPx > 0f) {
+        if (isSecondaryDisplay && !secondaryStartApplied && currentTrack != null && playerSheet.screenHeightPx > 0f) {
+            if (openPlayerOnSecondaryStart) playerSheet.animateTo(true, 0f)
+            else playerSheet.animateTo(false, 0f)
+            secondaryStartApplied = true
+        }
+    }
+
+    // DataStore 是异步读取的。恢复完成前不组合首页/详情页，避免进程重建时先闪到主页，
+    // 随后又跳回用户离开前的页面；起始窗口与这里保持同一深色，启动期间不会出现白块。
+    if (!navigationPersistenceReady) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BackgroundDark)
+        )
+        return
+    }
 
     var showCreateSheet by remember { mutableStateOf(false) }
     // 网页登录界面可见性状态
@@ -81,10 +166,7 @@ fun MelodiaApp() {
     var isMvCommentsOpen by remember { mutableStateOf(false) }
     // 悬浮播放卡片 + 导航栏的实际高度，下发给各页面用作列表底部留白
     var bottomOverlayHeight by remember { mutableStateOf(0.dp) }
-    // mini 栏爱心按钮触发的"收藏到歌单"弹层，非 null 时显示
-    var miniCollectSongId by remember { mutableStateOf<Long?>(null) }
 
-    val hazeState = remember { HazeState() }
     val density = LocalDensity.current
 
     val toastMessage = rememberGlobalToastMessage()
@@ -170,16 +252,18 @@ fun MelodiaApp() {
                         sidebar.close()
                     },
                     onDismiss = { sidebar.close() },
-                    onNavigateToProfile = { uid ->
-                        sidebar.close()
-                        navigation.openProfile(uid)
-                    },
-                    onNavigateToRecentPlay = { navigation.openRecentPlay() },
-                    onNavigateToListenData = { navigation.openListenData() },
-                    onNavigateToCloud = { navigation.openCloud() },
-                    onNavigateToMessage = { navigation.openMessage() },
-                    onNavigateToAccount = { navigation.openAccount() },
-                    onNavigateToSettings = { navigation.navigateTo(Screen.Settings) }
+                    onNavigateToProfile = { uid -> sidebar.closeThen { navigation.openProfile(uid) } },
+                    onNavigateToRecentPlay = { sidebar.closeThen { navigation.openRecentPlay() } },
+                    onNavigateToListenData = { sidebar.closeThen { navigation.openListenData() } },
+                    onNavigateToCloud = { sidebar.closeThen { navigation.openCloud() } },
+                    onNavigateToMessage = { sidebar.closeThen { navigation.openMessage() } },
+                    onNavigateToAccount = { sidebar.closeThen { navigation.openAccount() } },
+                    onNavigateToDualDisplay = { sidebar.closeThen { navigation.navigateTo(Screen.DualDisplay) } },
+                    onNavigateToPerformance = { sidebar.closeThen { navigation.navigateTo(Screen.LowResource) } },
+                    onNavigateToLyricPush = { sidebar.closeThen { navigation.navigateTo(Screen.LyricPush) } },
+                    onNavigateToLyricCardColors = { sidebar.closeThen { navigation.navigateTo(Screen.LyricCardColors) } },
+                    onNavigateToDiagnostics = { sidebar.closeThen { navigation.navigateTo(Screen.Diagnostics) } },
+                    onNavigateToSettings = { sidebar.closeThen { navigation.navigateTo(Screen.Settings) } }
                 )
             }
         }
@@ -201,9 +285,7 @@ fun MelodiaApp() {
                 LocalGlobalOverlayOpen provides (playerSheet.isOpen || sidebar.isOpen || showCreateSheet)
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(if (playerSheet.isOpen) Modifier.haze(hazeState) else Modifier)
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     MelodiaNavHost(
                         currentScreen = navigation.currentScreen,
@@ -251,7 +333,6 @@ fun MelodiaApp() {
                         isPlaying = miniPlayerShowPause,
                         currentPositionProvider = currentPositionProvider,
                         duration = duration,
-                        hazeState = hazeState,
                         onTogglePlay = { viewModel.togglePlayPause() },
                         onNext = { viewModel.playerManager.playNext() },
                         onMiniPlayerClick = { playerSheet.animateTo(true, 0f) },
@@ -265,8 +346,7 @@ fun MelodiaApp() {
                         onMiniPlayerLikeClick = {
                             val songId = currentTrack?.mediaId?.toLongOrNull()
                             if (songId != null) {
-                                miniCollectSongId = songId
-                                viewModel.prepareCollectDialog(songId)
+                                viewModel.toggleSongLike(songId)
                             }
                         },
                         onCreateDismiss = { showCreateSheet = false },
@@ -277,11 +357,12 @@ fun MelodiaApp() {
                     )
 
                     // 侧边栏打开时的遮罩与点击收起事件
-                    if (sidebar.progress > 0f) {
+                    val sidebarScrimVisible by remember(sidebar) { derivedStateOf { sidebar.progress > 0f } }
+                    if (sidebarScrimVisible) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.4f * sidebar.progress))
+                                .drawBehind { drawRect(Color.Black.copy(alpha = 0.4f * sidebar.progress)) }
                                 .pressable(
                                     style = MelodiaPress.None,
                                     enabled = sidebar.isOpen,
@@ -297,6 +378,7 @@ fun MelodiaApp() {
             currentTrack = currentTrack,
             screenHeightPx = playerSheet.screenHeightPx,
             isPlayerOpen = playerSheet.isOpen,
+            openGeneration = playerSheet.openGeneration,
             playerOffsetY = playerSheet.offsetY,
             isPlaying = isPlaying,
             currentPositionProvider = currentPositionProvider,
@@ -349,16 +431,6 @@ fun MelodiaApp() {
             )
         }
 
-        // 7. mini 栏爱心按钮触发的"收藏到歌单"弹层，跟全屏播放页共用同一个组件
-        miniCollectSongId?.let { songId ->
-            PlaylistCollectSheet(
-                songId = songId,
-                collectState = collectState,
-                onDismiss = { miniCollectSongId = null },
-                onSaveCollection = { id, items -> viewModel.savePlaylistCollection(id, items) },
-                onSaveNewCollection = { name, id -> viewModel.createPlaylistAndAddSong(name, id) }
-            )
-        }
     }
 }
 

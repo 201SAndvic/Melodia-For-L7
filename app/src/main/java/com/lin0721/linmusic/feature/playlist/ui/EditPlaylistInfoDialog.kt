@@ -52,6 +52,8 @@ import com.lin0721.linmusic.core.ui.components.ToastManager
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 private const val MAX_NAME_LENGTH = 40
 private const val MAX_DESC_LENGTH = 1000
@@ -80,173 +82,177 @@ fun EditPlaylistInfoDialog(
     val canSubmit = nameInput.isNotBlank() && isChanged && !isSaving
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(horizontal = MelodiaSpacing.lg, vertical = MelodiaSpacing.md)
-        ) {
-            Text(
-                text = "编辑歌单信息",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-
-            // 歌单标题区域：封面缩略图贴靠在名称输入框左侧，点击封面进入选图裁剪流程
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "歌单名称",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
-                Text(
-                    text = "${nameInput.length}/$MAX_NAME_LENGTH",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    fontSize = 12.sp
-                )
-            }
-            Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)
-            ) {
-                val context = LocalContext.current
-                // 待保存的本地封面直接喂 uri 给 Coil，没有则回落到线上地址
-                val coverRequest = remember(coverImgUrl, pendingCoverUri) {
-                    ImageRequest.Builder(context)
-                        .data(pendingCoverUri ?: "$coverImgUrl?param=100y100")
-                        .crossfade(true)
-                        .build()
-                }
-                Box(
+        MelodiaSheetDensity {
+                Column(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(RadiusCompact))
-                        .clickable(enabled = !isSaving, onClick = onEditCoverClick)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = MelodiaSpacing.lg, vertical = MelodiaSpacing.md)
                 ) {
-                    SubcomposeAsyncImage(
-                        model = coverRequest,
-                        contentDescription = "歌单封面",
-                        contentScale = ContentScale.Crop,
-                        loading = { CoverPlaceholder() },
-                        error = { CoverPlaceholder() },
-                        modifier = Modifier.fillMaxSize()
+                    Text(
+                        text = "编辑歌单信息",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.35f)),
-                        contentAlignment = Alignment.Center
+
+                    // 歌单标题区域：封面缩略图贴靠在名称输入框左侧，点击封面进入选图裁剪流程
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Edit,
-                            contentDescription = "更换封面",
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
+                        Text(
+                            text = "歌单名称",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "${nameInput.length}/$MAX_NAME_LENGTH",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            fontSize = 12.sp
                         )
                     }
-                }
-                PlaceholderTextField(
-                    value = nameInput,
-                    onValueChange = {
-                        if (it.length <= MAX_NAME_LENGTH) {
-                            nameInput = it
+                    Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)
+                    ) {
+                        val context = LocalContext.current
+                        // 待保存的本地封面直接喂 uri 给 Coil，没有则回落到线上地址
+                        val coverRequest = remember(coverImgUrl, pendingCoverUri) {
+                            ImageRequest.Builder(context)
+                                .data(pendingCoverUri ?: "$coverImgUrl?param=100y100")
+                                .crossfade(true)
+                                .build()
                         }
-                    },
-                    placeholder = "请输入歌单名称",
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(MelodiaSpacing.md))
-
-            // 歌单简介区域
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "歌单简介",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
-                Text(
-                    text = "${descInput.length}/$MAX_DESC_LENGTH",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    fontSize = 12.sp
-                )
-            }
-            Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
-            PlaceholderTextField(
-                value = descInput,
-                onValueChange = {
-                    if (it.length <= MAX_DESC_LENGTH) {
-                        descInput = it
-                    }
-                },
-                placeholder = "修改歌单简介",
-                modifier = Modifier.height(100.dp),
-                singleLine = false,
-                minLines = 3,
-                maxLines = 5
-            )
-
-            Spacer(modifier = Modifier.height(MelodiaSpacing.lg))
-
-            // 底部操作按钮区域
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MelodiaTextButton(onClick = onDismiss, enabled = !isSaving) {
-                    Text("取消", color = MaterialTheme.colorScheme.onSurface)
-                }
-                Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
-                MelodiaButton(
-                    onClick = {
-                        val trimmedName = nameInput.trim()
-                        if (trimmedName.isEmpty()) {
-                            ToastManager.showToast("歌单名称不能为空")
-                            return@MelodiaButton
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(RadiusCompact))
+                                .clickable(enabled = !isSaving, onClick = onEditCoverClick)
+                        ) {
+                            SubcomposeAsyncImage(
+                                model = coverRequest,
+                                contentDescription = "歌单封面",
+                                contentScale = ContentScale.Crop,
+                                loading = { CoverPlaceholder() },
+                                error = { CoverPlaceholder() },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.35f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = "更换封面",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
-                        if (!isChanged) {
-                            onDismiss()
-                            return@MelodiaButton
-                        }
-                        onConfirm(trimmedName, descInput.trim())
-                    },
-                    enabled = canSubmit,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    // 封面上传也走这个按钮，耗时明显，保存期间给个进行中反馈
-                    if (isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
+                        PlaceholderTextField(
+                            value = nameInput,
+                            onValueChange = {
+                                if (it.length <= MAX_NAME_LENGTH) {
+                                    nameInput = it
+                                }
+                            },
+                            placeholder = "请输入歌单名称",
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
                         )
-                    } else {
-                        Text("保存", fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(MelodiaSpacing.md))
+
+                    // 歌单简介区域
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "歌单简介",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "${descInput.length}/$MAX_DESC_LENGTH",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
+                    PlaceholderTextField(
+                        value = descInput,
+                        onValueChange = {
+                            if (it.length <= MAX_DESC_LENGTH) {
+                                descInput = it
+                            }
+                        },
+                        placeholder = "修改歌单简介",
+                        modifier = Modifier.height(100.dp),
+                        singleLine = false,
+                        minLines = 3,
+                        maxLines = 5
+                    )
+
+                    Spacer(modifier = Modifier.height(MelodiaSpacing.lg))
+
+                    // 底部操作按钮区域
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MelodiaTextButton(onClick = onDismiss, enabled = !isSaving) {
+                            Text("取消", color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
+                        MelodiaButton(
+                            onClick = {
+                                val trimmedName = nameInput.trim()
+                                if (trimmedName.isEmpty()) {
+                                    ToastManager.showToast("歌单名称不能为空")
+                                    return@MelodiaButton
+                                }
+                                if (!isChanged) {
+                                    onDismiss()
+                                    return@MelodiaButton
+                                }
+                                onConfirm(trimmedName, descInput.trim())
+                            },
+                            enabled = canSubmit,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            // 封面上传也走这个按钮，耗时明显，保存期间给个进行中反馈
+                            if (isSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("保存", fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
-            }
+
         }
     }
 }

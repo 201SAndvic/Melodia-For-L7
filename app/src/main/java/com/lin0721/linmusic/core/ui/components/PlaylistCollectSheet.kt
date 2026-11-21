@@ -24,6 +24,8 @@ import coil.compose.SubcomposeAsyncImage
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // ────────────────────────────────────────────────────────────────────────────
 // "收藏到歌单" 弹层，被 playlist、artist 等多个域复用。
@@ -42,192 +44,196 @@ fun PlaylistCollectSheet(
     confirmButtonShape: Shape = RoundedCornerShape(10.dp)
 ) {
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
         shape = sheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MelodiaSpacing.lg)
-                .navigationBarsPadding()
-                .padding(bottom = MelodiaSpacing.lg)
-        ) {
-            Text(
-                text = "收藏到歌单",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-
-            if (collectState.isLoading) {
-                Box(
+        MelodiaSheetDensity {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = MelodiaSpacing.lg)
+                        .navigationBarsPadding()
+                        .padding(bottom = MelodiaSpacing.lg)
                 ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else {
-                val localItems = remember(collectState.songId) {
-                    collectState.collectItems.map { it.copy() }.toMutableStateList()
-                }
-                // 记录主动勾选修改过的歌单 ID，避免被后台异步更新覆盖
-                val userModifiedIds = remember(collectState.songId) { mutableSetOf<Long>() }
+                    Text(
+                        text = "收藏到歌单",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                    )
 
-                LaunchedEffect(collectState.collectItems) {
-                    collectState.collectItems.forEach { remoteItem ->
-                        val localIndex = localItems.indexOfFirst { it.playlistId == remoteItem.playlistId }
-                        if (localIndex != -1) {
-                            val local = localItems[localIndex]
-                            if (!userModifiedIds.contains(remoteItem.playlistId)) {
-                                if (local.isContains != remoteItem.isContains || local.isInitiallyContains != remoteItem.isInitiallyContains) {
-                                    localItems[localIndex] = local.copy(
-                                        isInitiallyContains = remoteItem.isInitiallyContains,
-                                        isContains = remoteItem.isContains
-                                    )
-                                }
-                            }
-                        } else {
-                            localItems.add(remoteItem.copy())
-                        }
-                    }
-                }
-
-                var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)
-                ) {
-                    item(key = "create_new_playlist_item") {
-                        Row(
+                    if (collectState.isLoading) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    showCreatePlaylistDialog = true
-                                }
-                                .padding(vertical = MelodiaSpacing.sm),
-                            verticalAlignment = Alignment.CenterVertically
+                                .height(150.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(itemCornerRadius))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "新建歌单",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "新建歌单",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    if (localItems.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = MelodiaSpacing.lg),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("暂无其他可用歌单", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                            }
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         }
                     } else {
-                        itemsIndexed(localItems, key = { _, item -> item.playlistId }) { index, item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        userModifiedIds.add(item.playlistId)
-                                        localItems[index] = item.copy(isContains = !item.isContains)
+                        val localItems = remember(collectState.songId) {
+                            collectState.collectItems.map { it.copy() }.toMutableStateList()
+                        }
+                        // 记录主动勾选修改过的歌单 ID，避免被后台异步更新覆盖
+                        val userModifiedIds = remember(collectState.songId) { mutableSetOf<Long>() }
+
+                        LaunchedEffect(collectState.collectItems) {
+                            collectState.collectItems.forEach { remoteItem ->
+                                val localIndex = localItems.indexOfFirst { it.playlistId == remoteItem.playlistId }
+                                if (localIndex != -1) {
+                                    val local = localItems[localIndex]
+                                    if (!userModifiedIds.contains(remoteItem.playlistId)) {
+                                        if (local.isContains != remoteItem.isContains || local.isInitiallyContains != remoteItem.isInitiallyContains) {
+                                            localItems[localIndex] = local.copy(
+                                                isInitiallyContains = remoteItem.isInitiallyContains,
+                                                isContains = remoteItem.isContains
+                                            )
+                                        }
                                     }
-                                    .padding(vertical = MelodiaSpacing.sm),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
+                                } else {
+                                    localItems.add(remoteItem.copy())
+                                }
+                            }
+                        }
+
+                        var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 300.dp),
+                            verticalArrangement = Arrangement.spacedBy(MelodiaSpacing.sm)
+                        ) {
+                            item(key = "create_new_playlist_item") {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            showCreatePlaylistDialog = true
+                                        }
+                                        .padding(vertical = MelodiaSpacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    SubcomposeAsyncImage(
-                                        model = "${item.coverUrl}?param=100y100",
-                                        contentDescription = item.playlistName,
-                                        contentScale = ContentScale.Crop,
-                                        loading = { CoverPlaceholder() },
-                                        error = { CoverPlaceholder() },
+                                    Box(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(RoundedCornerShape(itemCornerRadius))
-                                    )
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = "新建歌单",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
-                                        text = item.playlistName,
+                                        text = "新建歌单",
                                         color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 14.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
-                                Checkbox(
-                                    checked = item.isContains,
-                                    onCheckedChange = { checked ->
-                                        userModifiedIds.add(item.playlistId)
-                                        localItems[index] = item.copy(isContains = checked)
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
-                                )
                             }
+
+                            if (localItems.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = MelodiaSpacing.lg),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("暂无其他可用歌单", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                                    }
+                                }
+                            } else {
+                                itemsIndexed(localItems, key = { _, item -> item.playlistId }) { index, item ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                userModifiedIds.add(item.playlistId)
+                                                localItems[index] = item.copy(isContains = !item.isContains)
+                                            }
+                                            .padding(vertical = MelodiaSpacing.sm),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            SubcomposeAsyncImage(
+                                                model = "${item.coverUrl}?param=100y100",
+                                                contentDescription = item.playlistName,
+                                                contentScale = ContentScale.Crop,
+                                                loading = { CoverPlaceholder() },
+                                                error = { CoverPlaceholder() },
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(RoundedCornerShape(itemCornerRadius))
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Text(
+                                                text = item.playlistName,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 14.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Checkbox(
+                                            checked = item.isContains,
+                                            onCheckedChange = { checked ->
+                                                userModifiedIds.add(item.playlistId)
+                                                localItems[index] = item.copy(isContains = checked)
+                                            },
+                                            colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(MelodiaSpacing.lg))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            MelodiaTextButton(onClick = onDismiss) {
+                                Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
+                            MelodiaButton(
+                                onClick = {
+                                    onSaveCollection(songId, localItems)
+                                    onDismiss()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = confirmButtonShape
+                            ) {
+                                Text("确定", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (showCreatePlaylistDialog) {
+                            CreatePlaylistDialog(
+                                onDismiss = { showCreatePlaylistDialog = false },
+                                onCreate = { name -> onSaveNewCollection(name, songId) }
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(MelodiaSpacing.lg))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    MelodiaTextButton(onClick = onDismiss) {
-                        Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(modifier = Modifier.width(MelodiaSpacing.sm))
-                    MelodiaButton(
-                        onClick = {
-                            onSaveCollection(songId, localItems)
-                            onDismiss()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = confirmButtonShape
-                    ) {
-                        Text("确定", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                if (showCreatePlaylistDialog) {
-                    CreatePlaylistDialog(
-                        onDismiss = { showCreatePlaylistDialog = false },
-                        onCreate = { name -> onSaveNewCollection(name, songId) }
-                    )
-                }
-            }
         }
     }
 }

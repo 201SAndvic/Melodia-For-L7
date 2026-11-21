@@ -21,6 +21,8 @@ import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.DragHandleShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.feature.player.ui.LyricCapsuleSlider
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,6 +132,7 @@ fun ExtensionsSettingsView(viewModel: SettingsViewModel) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
+                sheetMaxWidth = MelodiaSheetWidth,
                 onDismissRequest = { showAlignmentSheet = false },
                 sheetState = sheetState,
                 containerColor = MaterialTheme.colorScheme.background,
@@ -145,43 +148,46 @@ fun ExtensionsSettingsView(viewModel: SettingsViewModel) {
                     )
                 }
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-                ) {
-                    Text(
-                        text = "选择歌词对齐方式",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-                    )
+                MelodiaSheetDensity {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
+                                ) {
+                                    Text(
+                                        text = "选择歌词对齐方式",
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                                    )
 
-                    alignments.forEach { (key, label) ->
-                        val isSelected = fullScreenLyricAlignment == key
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.updateFullScreenLyricAlignment(key)
-                                    showAlignmentSheet = false
+                                    alignments.forEach { (key, label) ->
+                                        val isSelected = fullScreenLyricAlignment == key
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.updateFullScreenLyricAlignment(key)
+                                                    showAlignmentSheet = false
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 15.sp
+                                            )
+                                            if (isSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    }
                                 }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 15.sp
-                            )
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
+
                 }
             }
         }

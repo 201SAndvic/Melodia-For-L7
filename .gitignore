@@ -59,3 +59,7 @@ CLAUDE.md
 *_PLAN.md
 REFACTOR_ROADMAP.md
 RELEASE_SIGNING.md
+# 本机 Gradle 缓存和环境文件
+.gradle-local/
+.env
+.env.*

@@ -21,6 +21,8 @@ import com.lin0721.linmusic.core.model.getQualityDisplayName
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.DragHandleShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +70,7 @@ fun AudioQualitySettingsView(viewModel: SettingsViewModel) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
         ModalBottomSheet(
+            sheetMaxWidth = MelodiaSheetWidth,
             onDismissRequest = { qualityDialogTarget = null },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.background,
@@ -83,47 +86,50 @@ fun AudioQualitySettingsView(viewModel: SettingsViewModel) {
                 )
             }
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-            ) {
-                Text(
-                    text = if (isWifi) "选择 Wi-Fi 播放音质" else "选择移动网络播放音质",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-                )
+            MelodiaSheetDensity {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding()
+                                .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
+                        ) {
+                            Text(
+                                text = if (isWifi) "选择 Wi-Fi 播放音质" else "选择移动网络播放音质",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                            )
 
-                qualities.forEach { (key, label) ->
-                    val isSelected = activeQuality == key
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (isWifi) {
-                                    viewModel.updateWifiQuality(key)
-                                } else {
-                                    viewModel.updateMobileQuality(key)
+                            qualities.forEach { (key, label) ->
+                                val isSelected = activeQuality == key
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (isWifi) {
+                                                viewModel.updateWifiQuality(key)
+                                            } else {
+                                                viewModel.updateMobileQuality(key)
+                                            }
+                                            qualityDialogTarget = null
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 15.sp
+                                    )
+                                    if (isSelected) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    }
                                 }
-                                qualityDialogTarget = null
                             }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = label,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp
-                        )
-                        if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         }
-                    }
-                }
+
             }
         }
     }

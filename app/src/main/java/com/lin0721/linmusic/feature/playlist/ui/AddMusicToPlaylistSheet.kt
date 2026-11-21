@@ -62,6 +62,8 @@ import com.lin0721.linmusic.core.ui.components.MelodiaIconButton
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // 半屏搜索添加音乐抽屉
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,6 +85,7 @@ fun AddMusicToPlaylistSheet(
     var addingTrackIds by remember { mutableStateOf(setOf<Long>()) }
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
@@ -93,211 +96,214 @@ fun AddMusicToPlaylistSheet(
             .fillMaxHeight(0.85f)
             .imePadding()
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding()
-        ) {
-            // 顶栏：标题与关闭按钮
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MelodiaSpacing.md)
-                    .padding(bottom = MelodiaSpacing.sm),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "添加音乐到歌单",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                MelodiaIconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "关闭",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // 搜索输入框
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MelodiaSpacing.md)
-                    .padding(bottom = MelodiaSpacing.sm)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Rounded.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = onQueryChange,
-                    singleLine = true,
-                    textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                    decorationBox = { inner ->
-                        Box(contentAlignment = Alignment.CenterStart) {
-                            if (searchQuery.isEmpty()) {
-                                Text("搜索你想添加的歌曲", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                            }
-                            inner()
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(
-                        onClick = onClearQuery,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Rounded.Close,
-                            contentDescription = "清空",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-
-            // 搜索内容展示区
-            when (searchState) {
-                is AddMusicSearchState.Idle -> {
-                    if (recommendedSongs.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "输入关键词搜索歌曲",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentPadding = PaddingValues(bottom = MelodiaSpacing.md)
-                        ) {
-                            item(key = "recommend_header") {
-                                Text(
-                                    text = "推荐歌曲",
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(
-                                        horizontal = MelodiaSpacing.md,
-                                        vertical = MelodiaSpacing.sm
-                                    )
-                                )
-                            }
-                            items(items = recommendedSongs, key = { "rec_${it.id}" }) { track ->
-                                val isAdded = existingTrackIds.contains(track.id)
-                                val isAdding = addingTrackIds.contains(track.id)
-
-                                AddTrackRow(
-                                    track = track,
-                                    isAdded = isAdded,
-                                    isAdding = isAdding,
-                                    onAdd = {
-                                        addingTrackIds = addingTrackIds + track.id
-                                        onAddTrack(track) {
-                                            addingTrackIds = addingTrackIds - track.id
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-                is AddMusicSearchState.Loading -> {
-                    Box(
+        MelodiaSheetDensity {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .navigationBarsPadding()
+                ) {
+                    // 顶栏：标题与关闭按钮
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(36.dp),
-                            strokeWidth = 3.dp
-                        )
-                    }
-                }
-                is AddMusicSearchState.Error -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(horizontal = MelodiaSpacing.md),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = MelodiaSpacing.md)
+                            .padding(bottom = MelodiaSpacing.sm),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = searchState.message,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 14.sp
+                            text = "添加音乐到歌单",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                    }
-                }
-                is AddMusicSearchState.Success -> {
-                    if (searchState.tracks.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "未找到相关歌曲",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp
+                        MelodiaIconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "关闭",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentPadding = PaddingValues(bottom = MelodiaSpacing.md)
-                        ) {
-                            items(items = searchState.tracks, key = { it.id }) { track ->
-                                val isAdded = existingTrackIds.contains(track.id)
-                                val isAdding = addingTrackIds.contains(track.id)
+                    }
 
-                                AddTrackRow(
-                                    track = track,
-                                    isAdded = isAdded,
-                                    isAdding = isAdding,
-                                    onAdd = {
-                                        addingTrackIds = addingTrackIds + track.id
-                                        onAddTrack(track) {
-                                            addingTrackIds = addingTrackIds - track.id
-                                        }
+                    // 搜索输入框
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = MelodiaSpacing.md)
+                            .padding(bottom = MelodiaSpacing.sm)
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = onQueryChange,
+                            singleLine = true,
+                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                            decorationBox = { inner ->
+                                Box(contentAlignment = Alignment.CenterStart) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text("搜索你想添加的歌曲", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                                     }
+                                    inner()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = onClearQuery,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Close,
+                                    contentDescription = "清空",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
                     }
+
+                    // 搜索内容展示区
+                    when (searchState) {
+                        is AddMusicSearchState.Idle -> {
+                            if (recommendedSongs.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "输入关键词搜索歌曲",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentPadding = PaddingValues(bottom = MelodiaSpacing.md)
+                                ) {
+                                    item(key = "recommend_header") {
+                                        Text(
+                                            text = "推荐歌曲",
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(
+                                                horizontal = MelodiaSpacing.md,
+                                                vertical = MelodiaSpacing.sm
+                                            )
+                                        )
+                                    }
+                                    items(items = recommendedSongs, key = { "rec_${it.id}" }) { track ->
+                                        val isAdded = existingTrackIds.contains(track.id)
+                                        val isAdding = addingTrackIds.contains(track.id)
+
+                                        AddTrackRow(
+                                            track = track,
+                                            isAdded = isAdded,
+                                            isAdding = isAdding,
+                                            onAdd = {
+                                                addingTrackIds = addingTrackIds + track.id
+                                                onAddTrack(track) {
+                                                    addingTrackIds = addingTrackIds - track.id
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        is AddMusicSearchState.Loading -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(36.dp),
+                                    strokeWidth = 3.dp
+                                )
+                            }
+                        }
+                        is AddMusicSearchState.Error -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = MelodiaSpacing.md),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = searchState.message,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                        is AddMusicSearchState.Success -> {
+                            if (searchState.tracks.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "未找到相关歌曲",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentPadding = PaddingValues(bottom = MelodiaSpacing.md)
+                                ) {
+                                    items(items = searchState.tracks, key = { it.id }) { track ->
+                                        val isAdded = existingTrackIds.contains(track.id)
+                                        val isAdding = addingTrackIds.contains(track.id)
+
+                                        AddTrackRow(
+                                            track = track,
+                                            isAdded = isAdded,
+                                            isAdding = isAdding,
+                                            onAdd = {
+                                                addingTrackIds = addingTrackIds + track.id
+                                                onAddTrack(track) {
+                                                    addingTrackIds = addingTrackIds - track.id
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            }
+
         }
     }
 }

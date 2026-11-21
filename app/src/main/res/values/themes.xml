@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Melodia" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 应用根主题：Compose 侧强制暗色，平台主题也必须跟着暗色，并把窗口底色指定成同一个深色。
+         冷启动时系统先画「起始窗口」，用的就是这里的 windowBackground/colorBackground：
+         沿用浅色主题就会在应用首帧渲染出来之前闪一下白屏（安装包越慢越明显）。 -->
+    <style name="Theme.Melodia" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/melodia_window_background</item>
+        <item name="android:colorBackground">@color/melodia_window_background</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 
     <!-- 仅供 com.canhub.cropper.CropImageActivity 使用：该 Activity 继承 AppCompatActivity，
          要求宿主主题在 AppCompat 体系内，跟 Theme.Melodia 无关，不要挪作他用。

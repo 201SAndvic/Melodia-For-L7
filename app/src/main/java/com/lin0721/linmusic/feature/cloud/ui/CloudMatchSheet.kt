@@ -56,6 +56,8 @@ import com.lin0721.linmusic.core.ui.theme.NeteaseRed
 import com.lin0721.linmusic.core.ui.theme.RadiusCompact
 import com.lin0721.linmusic.core.ui.theme.SurfaceDark
 import com.lin0721.linmusic.core.ui.theme.TextGray
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 private val ResultsMaxHeight = 360.dp
 
@@ -86,77 +88,81 @@ fun CloudMatchSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = BackgroundDark,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = MelodiaSpacing.md)
-        ) {
-            Text(
-                text = "重新匹配「${overlay.song.name}」",
-                color = Color.White,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = MelodiaSpacing.sm)
-            )
-            PlaceholderTextField(
-                value = overlay.query,
-                onValueChange = onQueryChange,
-                placeholder = "搜索正版曲目名或歌手",
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-            Spacer(modifier = Modifier.height(MelodiaSpacing.sm))
+        MelodiaSheetDensity {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = MelodiaSpacing.md)
+                ) {
+                    Text(
+                        text = "重新匹配「${overlay.song.name}」",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = MelodiaSpacing.sm)
+                    )
+                    PlaceholderTextField(
+                        value = overlay.query,
+                        onValueChange = onQueryChange,
+                        placeholder = "搜索正版曲目名或歌手",
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                    Spacer(modifier = Modifier.height(MelodiaSpacing.sm))
 
-            AnimatedContent(
-                targetState = overlay.contentState(),
-                transitionSpec = { fadeIn(MatchContentFadeSpec) togetherWith fadeOut(MatchContentFadeSpec) },
-                label = "cloud_match_content"
-            ) { state ->
-                when (state) {
-                    MatchContentState.IDLE -> {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            EmptyState(icon = Icons.Rounded.Search, title = "输入歌曲名或歌手开始搜索")
-                        }
-                    }
+                    AnimatedContent(
+                        targetState = overlay.contentState(),
+                        transitionSpec = { fadeIn(MatchContentFadeSpec) togetherWith fadeOut(MatchContentFadeSpec) },
+                        label = "cloud_match_content"
+                    ) { state ->
+                        when (state) {
+                            MatchContentState.IDLE -> {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    EmptyState(icon = Icons.Rounded.Search, title = "输入歌曲名或歌手开始搜索")
+                                }
+                            }
 
-                    MatchContentState.SEARCHING -> {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                        }
-                    }
+                            MatchContentState.SEARCHING -> {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                }
+                            }
 
-                    MatchContentState.NO_RESULTS -> {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            EmptyState(icon = Icons.Rounded.LibraryMusic, title = "没有找到匹配的曲目")
-                        }
-                    }
+                            MatchContentState.NO_RESULTS -> {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    EmptyState(icon = Icons.Rounded.LibraryMusic, title = "没有找到匹配的曲目")
+                                }
+                            }
 
-                    MatchContentState.RESULTS -> {
-                        LazyColumn(
-                            modifier = Modifier.heightIn(max = ResultsMaxHeight),
-                            contentPadding = PaddingValues(bottom = MelodiaSpacing.sm)
-                        ) {
-                            items(overlay.results, key = { it.id }) { track ->
-                                MatchCandidateRow(track = track, onClick = { onSelect(track) })
+                            MatchContentState.RESULTS -> {
+                                LazyColumn(
+                                    modifier = Modifier.heightIn(max = ResultsMaxHeight),
+                                    contentPadding = PaddingValues(bottom = MelodiaSpacing.sm)
+                                ) {
+                                    items(overlay.results, key = { it.id }) { track ->
+                                        MatchCandidateRow(track = track, onClick = { onSelect(track) })
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
+
         }
     }
 

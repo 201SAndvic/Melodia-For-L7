@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Android 12 起冷启动由系统 SplashScreen 接管，背景色同样锁定成应用的深色底，避免闪白 -->
+    <style name="Theme.Melodia" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/melodia_window_background</item>
+        <item name="android:colorBackground">@color/melodia_window_background</item>
+        <item name="android:windowSplashScreenBackground">@color/melodia_window_background</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+</resources>

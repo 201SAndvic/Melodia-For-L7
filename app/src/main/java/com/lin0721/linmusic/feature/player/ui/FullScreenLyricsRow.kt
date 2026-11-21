@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -38,10 +39,15 @@ fun FullScreenLyricsRow(
     fontSize: Int = 22,
     alignment: String = "left",
     secondaryMode: String = "translation",
+    // 原词与翻译/音译之间的间距（dp），由全屏歌词设置里的滑块控制
+    secondarySpacing: Int = 6,
     advancedKaraokeEffect: Boolean = true,
     isPlaying: Boolean = true,
     onClick: () -> Unit
 ) {
+    val optimizations = com.lin0721.linmusic.core.ui.layout.LocalPerformanceOptimizations.current
+    val lineHighlight = optimizations.enabled(com.lin0721.linmusic.core.preferences.PerformanceOptimization.LINE_HIGHLIGHT)
+    val staticScale = optimizations.enabled(com.lin0721.linmusic.core.preferences.PerformanceOptimization.STATIC_LYRIC_SCALE)
     val textAlign = when (alignment) {
         "center" -> TextAlign.Center
         "right" -> TextAlign.End
@@ -61,9 +67,10 @@ fun FullScreenLyricsRow(
     val translationFontSize = (fontSize - 5).coerceAtLeast(12).sp
     val mainLineHeight = (fontSize * 1.35f).sp
     val translationLineHeight = (translationFontSize.value * 1.35f).sp
-    val spacingBetween = (fontSize * 0.28f).coerceIn(6f, 14f).dp
+    // 原先按字号比例估算（6~14dp），现在直接取用户设置的间距
+    val spacingBetween = secondarySpacing.coerceAtLeast(0).dp
 
-    val targetScale = when {
+    val targetScale = if (staticScale) 1f else when {
         isCurrent -> 1.12f
         isCenterTarget -> 1.04f
         else -> when (distance) {
@@ -114,13 +121,16 @@ fun FullScreenLyricsRow(
                 scaleY = animatedScale
                 alpha = animatedAlpha
                 transformOrigin = targetTransformOrigin
+                // Inactive original/translation children do not overlap vertically.
+                compositingStrategy = if (modulateInactiveLyricAlpha(isCurrent, animatedAlpha))
+                    CompositingStrategy.ModulateAlpha else CompositingStrategy.Auto
             }
             .pressable(MelodiaPress.None) {
                 onClick()
             },
         horizontalAlignment = horizontalAlignment
     ) {
-        if (isCurrent && line.words.isNotEmpty()) {
+        if (isCurrent && line.words.isNotEmpty() && !lineHighlight) {
             KaraokeLyricRow(
                 line = line,
                 currentPositionProvider = currentPositionProvider,

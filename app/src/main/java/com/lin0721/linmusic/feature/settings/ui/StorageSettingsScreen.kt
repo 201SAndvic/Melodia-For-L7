@@ -32,6 +32,8 @@ import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.ui.theme.NeteaseRed
 import com.lin0721.linmusic.core.ui.theme.TextGray
 import com.lin0721.linmusic.feature.cloud.domain.formatFileSize
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // 5 个分类的图例色，复用首页功能入口卡片已有的策展色，不新造颜色
 private val CacheAudioColor = NeteaseRed
@@ -206,6 +208,7 @@ fun StorageSettingsView(viewModel: SettingsViewModel, context: Context) {
         if (showSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ModalBottomSheet(
+                sheetMaxWidth = MelodiaSheetWidth,
                 onDismissRequest = { showSheet = false },
                 sheetState = sheetState,
                 containerColor = MaterialTheme.colorScheme.background,
@@ -221,50 +224,53 @@ fun StorageSettingsView(viewModel: SettingsViewModel, context: Context) {
                     )
                 }
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-                ) {
-                    Text(
-                        text = "最大音频缓存上限",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-                    )
+                MelodiaSheetDensity {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
+                                ) {
+                                    Text(
+                                        text = "最大音频缓存上限",
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                                    )
 
-                    val options = listOf(
-                        500 * 1024 * 1024L to "500 MB",
-                        1024 * 1024 * 1024L to "1 GB",
-                        2 * 1024 * 1024 * 1024L to "2 GB",
-                        5 * 1024 * 1024 * 1024L to "5 GB",
-                        Long.MAX_VALUE to "无限制"
-                    )
-                    options.forEach { (size, label) ->
-                        val isSelected = currentMaxSize == size
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.updateAudioCacheMaxSize(context, size)
-                                    showSheet = false
+                                    val options = listOf(
+                                        500 * 1024 * 1024L to "500 MB",
+                                        1024 * 1024 * 1024L to "1 GB",
+                                        2 * 1024 * 1024 * 1024L to "2 GB",
+                                        5 * 1024 * 1024 * 1024L to "5 GB",
+                                        Long.MAX_VALUE to "无限制"
+                                    )
+                                    options.forEach { (size, label) ->
+                                        val isSelected = currentMaxSize == size
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.updateAudioCacheMaxSize(context, size)
+                                                    showSheet = false
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 15.sp
+                                            )
+                                            if (isSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    }
                                 }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 15.sp
-                            )
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
+
                 }
             }
         }

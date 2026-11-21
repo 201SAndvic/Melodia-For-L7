@@ -42,6 +42,8 @@ import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.ui.theme.NeteaseRed
 import com.lin0721.linmusic.feature.cloud.upload.UploadStatus
 import com.lin0721.linmusic.feature.cloud.upload.UploadTask
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 private val StatusGreen = Color(0xFF639922)
 
@@ -61,58 +63,62 @@ fun CloudUploadProgressSheet(
     val overallProgress = if (total == 0) 0f else (tasks.sumOf { it.progress.toDouble() } / total).toFloat()
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = BackgroundDark,
         shape = BottomSheetShape,
         dragHandle = { MelodiaDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = MelodiaSpacing.md)
-        ) {
-            Text(
-                text = "正在上传",
-                color = Color.White,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(bottom = 2.dp)
-            )
-            Text(
-                text = "$doneCount / $total 完成",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp
-            )
+        MelodiaSheetDensity {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = MelodiaSpacing.md)
+                ) {
+                    Text(
+                        text = "正在上传",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                    Text(
+                        text = "$doneCount / $total 完成",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
 
-            Spacer(modifier = Modifier.height(MelodiaSpacing.sm))
+                    Spacer(modifier = Modifier.height(MelodiaSpacing.sm))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LinearProgressIndicator(
-                    progress = { overallProgress.coerceIn(0f, 1f) },
-                    modifier = Modifier.weight(1f).height(6.dp),
-                    color = NeteaseRed,
-                    trackColor = Color.White.copy(alpha = 0.1f)
-                )
-                Text(
-                    text = "${(overallProgress * 100).toInt()}%",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(start = MelodiaSpacing.sm)
-                )
-            }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        LinearProgressIndicator(
+                            progress = { overallProgress.coerceIn(0f, 1f) },
+                            modifier = Modifier.weight(1f).height(6.dp),
+                            color = NeteaseRed,
+                            trackColor = Color.White.copy(alpha = 0.1f)
+                        )
+                        Text(
+                            text = "${(overallProgress * 100).toInt()}%",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(start = MelodiaSpacing.sm)
+                        )
+                    }
 
-            Spacer(modifier = Modifier.height(MelodiaSpacing.md))
+                    Spacer(modifier = Modifier.height(MelodiaSpacing.md))
 
-            LazyColumn(
-                modifier = Modifier.heightIn(max = 320.dp),
-                contentPadding = PaddingValues(bottom = MelodiaSpacing.sm)
-            ) {
-                items(tasks, key = { it.id }) { task ->
-                    UploadTaskRow(task = task, onRetry = { onRetry(task.id) })
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        contentPadding = PaddingValues(bottom = MelodiaSpacing.sm)
+                    ) {
+                        items(tasks, key = { it.id }) { task ->
+                            UploadTaskRow(task = task, onRetry = { onRetry(task.id) })
+                        }
+                    }
                 }
-            }
+
         }
     }
 }

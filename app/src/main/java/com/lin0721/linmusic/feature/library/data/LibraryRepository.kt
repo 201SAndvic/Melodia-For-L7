@@ -4,6 +4,7 @@ import com.lin0721.linmusic.core.model.Track
 import kotlinx.coroutines.flow.Flow
 
 // 听歌排行单曲：附带播放次数，供排行榜页展示
+@kotlinx.serialization.Serializable
 data class UserRecordTrack(
     val track: Track,
     val playCount: Int

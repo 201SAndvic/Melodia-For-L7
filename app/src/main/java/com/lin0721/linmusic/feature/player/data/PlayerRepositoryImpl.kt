@@ -11,14 +11,37 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.first
 
 private const val TAG = "PlayerRepositoryImpl"
 
 class PlayerRepositoryImpl(
-    private val apiService: PlayerApi
+    private val apiService: PlayerApi,
+    private val weakCache: com.lin0721.linmusic.core.network.WeakNetworkCache? = null,
+    private val wikiSummaryRepository: SongWikiSummaryRepository
 ) : PlayerRepository {
 
-    override fun getSongDetail(songId: Long): Flow<Result<Track>> = apiFlow(
+    private val sharedDetails = com.lin0721.linmusic.core.network.SharedResultCache<Long, Track>()
+    private val sharedChorus = com.lin0721.linmusic.core.network.SharedResultCache<Long, ChorusStart>(capacity = 64, ttlMs = 60 * 60 * 1000L)
+
+    override fun getChorusStartTime(songId: Long): Flow<Result<Long?>> = flow {
+        if (songId <= 0) { emit(Result.success(null)); return@flow }
+        emit(sharedChorus.get(songId) {
+            kotlinx.coroutines.withTimeoutOrNull(6_000) {
+                val source = { apiFlow(request = { apiService.getSongChorus(SongChorusRequest("[$songId]")) },
+                    isSuccess = { it.code == 200 }, code = { it.code }, transform = { it.startFor(songId) }) }
+                (weakCache?.cached("chorus:$songId", source = source) ?: source()).first()
+            } ?: Result.failure(java.io.IOException("Chorus request timeout"))
+        }.map { it.timeMs })
+    }
+
+    override fun getSongDetail(songId: Long): Flow<Result<Track>> = flow {
+        emit(sharedDetails.get(songId) {
+            (weakCache?.cached("song:$songId") { getUncachedSongDetail(songId) } ?: getUncachedSongDetail(songId)).first()
+        })
+    }
+
+    private fun getUncachedSongDetail(songId: Long): Flow<Result<Track>> = apiFlow(
         request = {
             val c = """[{"id":$songId}]"""
             apiService.getSongDetail(SongDetailRequest(c = c))
@@ -28,7 +51,10 @@ class PlayerRepositoryImpl(
         transform = { it.songs[0] }
     )
 
-    override fun getSongDetails(songIds: List<Long>): Flow<Result<List<Track>>> = apiFlow(
+    override fun getSongDetails(songIds: List<Long>): Flow<Result<List<Track>>> =
+        weakCache?.cached("songs:${songIds.joinToString(",")}") { getUncachedSongDetails(songIds) } ?: getUncachedSongDetails(songIds)
+
+    private fun getUncachedSongDetails(songIds: List<Long>): Flow<Result<List<Track>>> = apiFlow(
         request = {
             val c = songIds.joinToString(prefix = "[", postfix = "]") { """{"id":$it}""" }
             apiService.getSongDetail(SongDetailRequest(c = c))
@@ -50,7 +76,7 @@ class PlayerRepositoryImpl(
             }
             val wikiDeferred = async {
                 runCatching {
-                    apiService.getSongWikiSummary(SongWikiSummaryRequest(songId = songId))
+                    wikiSummaryRepository.get(songId).getOrThrow()
                 }
             }
             val creatorsDeferred = async {
@@ -81,7 +107,7 @@ class PlayerRepositoryImpl(
             }
 
             var style = ""
-            var language = ""
+            val language = wikiResult?.languageLabels().orEmpty()
             var bpm = ""
             var entertainment = ""
             var background = ""
@@ -96,9 +122,6 @@ class PlayerRepositoryImpl(
                                 style = creative.resources.mapNotNull { it.uiElement?.mainTitle?.title }
                                     .filter { it.isNotEmpty() }
                                     .joinToString(" / ")
-                            }
-                            "language" -> {
-                                language = creative.uiElement?.textLinks?.firstOrNull()?.text ?: ""
                             }
                             "bpm" -> {
                                 bpm = creative.uiElement?.textLinks?.firstOrNull()?.text ?: ""

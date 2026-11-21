@@ -124,6 +124,21 @@ fun MelodiaNavHost(
                     onBack = onBack
                 )
             }
+            is Screen.DualDisplay -> {
+                com.lin0721.linmusic.feature.settings.ui.DualDisplaySettingsScreen(onBack = onBack)
+            }
+            is Screen.LowResource -> {
+                com.lin0721.linmusic.feature.settings.ui.PerformanceSettingsScreen(onBack = onBack)
+            }
+            is Screen.Diagnostics -> {
+                com.lin0721.linmusic.feature.settings.ui.DiagnosticsSettingsScreen(onBack = onBack)
+            }
+            is Screen.LyricPush -> {
+                com.lin0721.linmusic.feature.settings.ui.LyricPushSettingsScreen(onBack = onBack)
+            }
+            is Screen.LyricCardColors -> {
+                com.lin0721.linmusic.feature.settings.ui.LyricCardColorSettingsScreen(onBack = onBack)
+            }
             is Screen.Radio -> {
                 com.lin0721.linmusic.feature.podcast.ui.RadioDetailScreen(
                     radioId = screen.id,

@@ -5,6 +5,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LyricParserTest {
+    @Test fun `逐字翻译空字符串或资料行时仍读取普通翻译`() {
+        listOf(null, "", "  ", "[ar:metadata only]").forEach { primary ->
+            assertEquals("中文译文", LyricParser.parsePreferredTranslation(primary, "[00:01.000]中文译文").single().text)
+        }
+    }
+    @Test fun `有有效逐字翻译时维持原有优先级`() {
+        assertEquals("逐字译文", LyricParser.parsePreferredTranslation("[00:01.000]逐字译文", "[00:01.000]普通译文").single().text)
+    }
+    @Test fun `JSON包装中的时间戳不被误认为歌词也不泄漏结束符`() {
+        val source = """{"lyric":"[00:01.000]译文"}"""
+        assertTrue(LyricParser.parseLrc(source).isEmpty())
+        assertEquals("正常译文", LyricParser.parseLrc("$source\n[00:02.000]正常译文").single().text)
+    }
+    @Test fun `制作人员JSON被忽略且BOM与前导空格仍支持`() {
+        assertEquals("Hello", LyricParser.parseLrc("\uFEFF[00:01.000]Hello").single().text)
+        assertEquals("Hello", LyricParser.parseLrc("  [00:01.000]Hello").single().text)
+        assertTrue(LyricParser.parseLrc("""{"t":0,"c":[{"tx":"作词：某某"}]}""").isEmpty())
+    }
 
     // ======================= LRC 解析 =======================
 

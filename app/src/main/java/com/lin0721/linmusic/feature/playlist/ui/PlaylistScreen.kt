@@ -79,6 +79,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -744,211 +746,215 @@ fun PlaylistScreen(
         if (showMoreMenuSheet && successState != null) {
             val playlist = successState.playlist
             ModalBottomSheet(
+                sheetMaxWidth = MelodiaSheetWidth,
                 onDismissRequest = { showMoreMenuSheet = false },
                 containerColor = MaterialTheme.colorScheme.background,
                 shape = BottomSheetShape,
                 dragHandle = { MelodiaDragHandle() }
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(bottom = MelodiaSpacing.md)
-                ) {
-                    val firstArtist = playlist.tracks.firstOrNull()?.ar?.firstOrNull()
-                    val artistName = firstArtist?.name ?: "未知歌手"
-                    val resourceLabel = if (isAlbum) "专辑" else "歌单"
-
-                    val subtitleText = buildString {
-                        val author = if (isAlbum) artistName else playlist.creator?.nickname
-                        if (!author.isNullOrBlank()) {
-                            append(author)
-                        }
-                        val totalTrackCount = if (playlist.trackIds.isNotEmpty()) playlist.trackIds.size else playlist.tracks.size
-                        if (totalTrackCount > 0) {
-                            if (isNotEmpty()) append(" · ")
-                            append("${totalTrackCount}首")
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SubcomposeAsyncImage(
-                            model = if (playlist.coverImgUrl.isNotEmpty()) "${playlist.coverImgUrl}?param=150y150" else null,
-                            contentDescription = playlist.name,
-                            contentScale = ContentScale.Crop,
-                            loading = { CoverPlaceholder() },
-                            error = { CoverPlaceholder() },
-                            modifier = Modifier
-                                .size(54.dp)
-                                .clip(MaterialTheme.shapes.small)
-                        )
-                        Spacer(modifier = Modifier.width(MelodiaSpacing.md))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = playlist.name,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (subtitleText.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
-                                Text(
-                                    text = subtitleText,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(
-                        color = Color.White.copy(alpha = 0.08f),
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
-                    )
-
-                    val isManageable = !isAlbum && userProfile != null &&
-                        playlist.creator?.userId == userProfile?.uid &&
-                        playlist.id > 0L &&
-                        playlist.id != userProfile?.uid
-
-                    val menuItems = buildList {
-                        add(
-                            PlaylistMenuItem(
-                                icon = if (successState.isSubscribed) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                title = if (successState.isSubscribed) "取消收藏$resourceLabel" else "收藏$resourceLabel"
-                            ) {
-                                showMoreMenuSheet = false
-                                if (userProfile == null) {
-                                    showLoginSheet = true
-                                } else {
-                                    viewModel.toggleSubscribePlaylist()
-                                }
-                            }
-                        )
-                        add(
-                            PlaylistMenuItem(
-                                icon = Icons.Default.Person,
-                                title = "跳转至艺人"
-                            ) {
-                                showMoreMenuSheet = false
-                                if (firstArtist != null) {
-                                    onArtistClick(firstArtist.id)
-                                } else {
-                                    com.lin0721.linmusic.core.ui.components.ToastManager.showToast("未找到关联艺人信息")
-                                }
-                            }
-                        )
-                        add(
-                            PlaylistMenuItem(
-                                icon = Icons.AutoMirrored.Filled.QueueMusic,
-                                title = "加入播放队列"
-                            ) {
-                                showMoreMenuSheet = false
-                                viewModel.addTracksToPlayNext(playlist.tracks)
-                            }
-                        )
-                        add(
-                            PlaylistMenuItem(
-                                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                                title = "添加到歌单"
-                            ) {
-                                showMoreMenuSheet = false
-                                if (userProfile == null) {
-                                    showLoginSheet = true
-                                } else {
-                                    viewModel.prepareImportTargets(playlist.id)
-                                    showImportTargetSheet = true
-                                }
-                            }
-                        )
-                        add(
-                            PlaylistMenuItem(
-                                icon = Icons.Default.Share,
-                                title = "分享$resourceLabel"
-                            ) {
-                                showMoreMenuSheet = false
-                                sharePlaylistOrAlbum(playlist.name, playlist.id)
-                            }
-                        )
-                        add(
-                            PlaylistMenuItem(
-                                icon = Icons.Default.Download,
-                                title = "下载$resourceLabel"
-                            ) {
-                                showMoreMenuSheet = false
-                                showDownloadQualitySheet = true
-                            }
-                        )
-                        if (isManageable) {
-                            add(
-                                PlaylistMenuItem(
-                                    icon = Icons.Default.Edit,
-                                    title = "编辑歌单信息"
+                MelodiaSheetDensity {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .padding(bottom = MelodiaSpacing.md)
                                 ) {
-                                    showMoreMenuSheet = false
-                                    showEditInfoDialog = true
-                                }
-                            )
-                            add(
-                                PlaylistMenuItem(
-                                    icon = Icons.Default.Delete,
-                                    title = "删除歌单",
-                                    isDestructive = true
-                                ) {
-                                    showMoreMenuSheet = false
-                                    showDeleteConfirmDialog = true
-                                }
-                            )
-                        }
-                    }
+                                    val firstArtist = playlist.tracks.firstOrNull()?.ar?.firstOrNull()
+                                    val artistName = firstArtist?.name ?: "未知歌手"
+                                    val resourceLabel = if (isAlbum) "专辑" else "歌单"
 
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(menuItems, key = { it.title }) { item ->
-                            val iconColor = if (item.isDestructive) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                            val titleColor = if (item.isDestructive) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(onClick = item.onClick)
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.title,
-                                    tint = iconColor,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(MelodiaSpacing.md))
-                                Text(
-                                    text = item.title,
-                                    color = titleColor,
-                                    fontSize = 15.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
+                                    val subtitleText = buildString {
+                                        val author = if (isAlbum) artistName else playlist.creator?.nickname
+                                        if (!author.isNullOrBlank()) {
+                                            append(author)
+                                        }
+                                        val totalTrackCount = if (playlist.trackIds.isNotEmpty()) playlist.trackIds.size else playlist.tracks.size
+                                        if (totalTrackCount > 0) {
+                                            if (isNotEmpty()) append(" · ")
+                                            append("${totalTrackCount}首")
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        SubcomposeAsyncImage(
+                                            model = if (playlist.coverImgUrl.isNotEmpty()) "${playlist.coverImgUrl}?param=150y150" else null,
+                                            contentDescription = playlist.name,
+                                            contentScale = ContentScale.Crop,
+                                            loading = { CoverPlaceholder() },
+                                            error = { CoverPlaceholder() },
+                                            modifier = Modifier
+                                                .size(54.dp)
+                                                .clip(MaterialTheme.shapes.small)
+                                        )
+                                        Spacer(modifier = Modifier.width(MelodiaSpacing.md))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = playlist.name,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 17.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (subtitleText.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(MelodiaSpacing.xs))
+                                                Text(
+                                                    text = subtitleText,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontSize = 13.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalDivider(
+                                        color = Color.White.copy(alpha = 0.08f),
+                                        modifier = Modifier.padding(horizontal = 20.dp, vertical = MelodiaSpacing.sm)
+                                    )
+
+                                    val isManageable = !isAlbum && userProfile != null &&
+                                        playlist.creator?.userId == userProfile?.uid &&
+                                        playlist.id > 0L &&
+                                        playlist.id != userProfile?.uid
+
+                                    val menuItems = buildList {
+                                        add(
+                                            PlaylistMenuItem(
+                                                icon = if (successState.isSubscribed) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                title = if (successState.isSubscribed) "取消收藏$resourceLabel" else "收藏$resourceLabel"
+                                            ) {
+                                                showMoreMenuSheet = false
+                                                if (userProfile == null) {
+                                                    showLoginSheet = true
+                                                } else {
+                                                    viewModel.toggleSubscribePlaylist()
+                                                }
+                                            }
+                                        )
+                                        add(
+                                            PlaylistMenuItem(
+                                                icon = Icons.Default.Person,
+                                                title = "跳转至艺人"
+                                            ) {
+                                                showMoreMenuSheet = false
+                                                if (firstArtist != null) {
+                                                    onArtistClick(firstArtist.id)
+                                                } else {
+                                                    com.lin0721.linmusic.core.ui.components.ToastManager.showToast("未找到关联艺人信息")
+                                                }
+                                            }
+                                        )
+                                        add(
+                                            PlaylistMenuItem(
+                                                icon = Icons.AutoMirrored.Filled.QueueMusic,
+                                                title = "加入播放队列"
+                                            ) {
+                                                showMoreMenuSheet = false
+                                                viewModel.addTracksToPlayNext(playlist.tracks)
+                                            }
+                                        )
+                                        add(
+                                            PlaylistMenuItem(
+                                                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                                title = "添加到歌单"
+                                            ) {
+                                                showMoreMenuSheet = false
+                                                if (userProfile == null) {
+                                                    showLoginSheet = true
+                                                } else {
+                                                    viewModel.prepareImportTargets(playlist.id)
+                                                    showImportTargetSheet = true
+                                                }
+                                            }
+                                        )
+                                        add(
+                                            PlaylistMenuItem(
+                                                icon = Icons.Default.Share,
+                                                title = "分享$resourceLabel"
+                                            ) {
+                                                showMoreMenuSheet = false
+                                                sharePlaylistOrAlbum(playlist.name, playlist.id)
+                                            }
+                                        )
+                                        add(
+                                            PlaylistMenuItem(
+                                                icon = Icons.Default.Download,
+                                                title = "下载$resourceLabel"
+                                            ) {
+                                                showMoreMenuSheet = false
+                                                showDownloadQualitySheet = true
+                                            }
+                                        )
+                                        if (isManageable) {
+                                            add(
+                                                PlaylistMenuItem(
+                                                    icon = Icons.Default.Edit,
+                                                    title = "编辑歌单信息"
+                                                ) {
+                                                    showMoreMenuSheet = false
+                                                    showEditInfoDialog = true
+                                                }
+                                            )
+                                            add(
+                                                PlaylistMenuItem(
+                                                    icon = Icons.Default.Delete,
+                                                    title = "删除歌单",
+                                                    isDestructive = true
+                                                ) {
+                                                    showMoreMenuSheet = false
+                                                    showDeleteConfirmDialog = true
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        items(menuItems, key = { it.title }) { item ->
+                                            val iconColor = if (item.isDestructive) {
+                                                MaterialTheme.colorScheme.error
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            }
+                                            val titleColor = if (item.isDestructive) {
+                                                MaterialTheme.colorScheme.error
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface
+                                            }
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable(onClick = item.onClick)
+                                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = item.icon,
+                                                    contentDescription = item.title,
+                                                    tint = iconColor,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(MelodiaSpacing.md))
+                                                Text(
+                                                    text = item.title,
+                                                    color = titleColor,
+                                                    fontSize = 15.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
                 }
             }
         }

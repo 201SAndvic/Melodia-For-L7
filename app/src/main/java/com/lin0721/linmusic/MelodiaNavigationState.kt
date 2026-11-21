@@ -29,6 +29,17 @@ sealed class Screen {
     @Serializable
     data object Settings : Screen()
     @Serializable
+    data object DualDisplay : Screen()
+    @Serializable
+    // Keep the serialized route name so v25's saved settings page still restores.
+    data object LowResource : Screen()
+    @Serializable
+    data object LyricCardColors : Screen()
+    @Serializable
+    data object LyricPush : Screen()
+    @Serializable
+    data object Diagnostics : Screen()
+    @Serializable
     data class Artist(val id: Long) : Screen()
     @Serializable
     data class Radio(val id: Long) : Screen()
@@ -71,6 +82,10 @@ class MelodiaNavigationState(
     private val libraryStack = mutableStateListOf<Screen>().apply { addAll(initialLibraryStack) }
 
     var activeTab by mutableStateOf(initialActiveTab)
+        private set
+
+    // 每次导航发生变化时递增，用于驱动持久化；播放器一次性跳转标记不计入快照。
+    var revision by mutableIntStateOf(0)
         private set
 
     private fun stackFor(tab: Screen): MutableList<Screen> = when (tab) {
@@ -129,14 +144,17 @@ class MelodiaNavigationState(
             Screen.Home, Screen.Search, Screen.Library -> {
                 if (activeTab == screen) {
                     resetStackToRoot(screen)
+                    changed()
                     return
                 }
                 resetPlayerNavigation()
                 activeTab = screen
+                changed()
             }
             else -> {
                 if (activeStack.lastOrNull() == screen) return
                 activeStack.add(screen)
+                changed()
             }
         }
     }
@@ -149,12 +167,14 @@ class MelodiaNavigationState(
             if (willExitPlayerNav) {
                 resetPlayerNavigation()
             }
+            changed()
             return willExitPlayerNav
         }
         // 已在当前 tab 的根页面
         if (activeTab != Screen.Home) {
             resetStackToRoot(Screen.Home)
             activeTab = Screen.Home
+            changed()
         }
         return false
     }
@@ -179,10 +199,12 @@ class MelodiaNavigationState(
         homeTab = index
         // 点任意主药丸都回到该 tab 的默认内容，「最新」只能通过下面的入口单独选中
         showMusicNewWorks = false
+        changed()
     }
 
     fun updateShowMusicNewWorks(show: Boolean) {
         showMusicNewWorks = show
+        changed()
     }
 
     fun openRadio(id: Long) {
@@ -248,6 +270,30 @@ class MelodiaNavigationState(
         activeTabIndex = tabIndex(activeTab),
         homeTab = homeTab
     )
+
+    internal fun snapshotForPersistence(): String =
+        navigationJson.encodeToString(NavigationSnapshot.serializer(), toSnapshot())
+
+    internal fun restoreFromPersistence(raw: String?): Boolean {
+        if (raw.isNullOrBlank()) return false
+        val snapshot = runCatching {
+            navigationJson.decodeFromString(NavigationSnapshot.serializer(), raw)
+        }.getOrNull() ?: return false
+        homeStack.clear()
+        homeStack.addAll(snapshot.homeStack.ifEmpty { listOf(Screen.Home) })
+        searchStack.clear()
+        searchStack.addAll(snapshot.searchStack.ifEmpty { listOf(Screen.Search) })
+        libraryStack.clear()
+        libraryStack.addAll(snapshot.libraryStack.ifEmpty { listOf(Screen.Library) })
+        activeTab = tabFromIndex(snapshot.activeTabIndex)
+        homeTab = snapshot.homeTab
+        revision++
+        return true
+    }
+
+    private fun changed() {
+        revision++
+    }
 }
 
 // 三条回退栈 + 当前 tab 的可序列化快照，用于跨进程重建保留浏览历史。

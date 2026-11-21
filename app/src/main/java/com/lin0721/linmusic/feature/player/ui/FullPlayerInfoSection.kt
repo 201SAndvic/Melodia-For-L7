@@ -5,20 +5,119 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.lin0721.linmusic.core.comment.ui.CommentsPreviewCard
 import com.lin0721.linmusic.core.comment.ui.CommentsState
+import com.lin0721.linmusic.core.preferences.FullPlayerCard
+import com.lin0721.linmusic.core.preferences.FullPlayerCardSetting
+import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.ui.theme.PlayerBackdropPalette
 
-// 播放器信息区：歌词卡、评论预览、歌曲详情、歌手简介、歌手专辑、相似歌手
-// 除单行歌词外，以下卡片固定按此顺序展示：前一张卡片还没出结论（在加载中）时，
+private const val EDIT_CARDS_KEY = "edit_cards"
+
+// 按用户配置的顺序与显隐算出当前要展示的卡片：前一张可见卡片还没出结论（在加载中）时，
 // 后面的卡片哪怕数据先到也一律不展示，避免顺序被网络到达时机打乱、插到已展示内容上方
+private data class VisibleInfoCards(val cards: List<FullPlayerCard>, val allSettled: Boolean)
+
+private fun visibleInfoCards(
+    songState: PlayerSongDetailState,
+    commentsState: CommentsState,
+    cardLayout: List<FullPlayerCardSetting>
+): VisibleInfoCards {
+    val lyrics = songState.lyrics
+    val isPureMusic = lyrics.size == 1 && lyrics[0].text == "纯音乐"
+
+    // 每格 (是否已出结论, 结论是否要展示)
+    fun slotState(card: FullPlayerCard): Pair<Boolean, Boolean> = when (card) {
+        FullPlayerCard.LYRICS -> Pair(!songState.isLyricsLoading, lyrics.isNotEmpty() && !isPureMusic)
+        FullPlayerCard.COMMENTS_PREVIEW -> Pair(commentsState !is CommentsState.Loading, true)
+        FullPlayerCard.SONG_DETAIL -> Pair(!songState.isSongWikiLoading, songState.songWiki != null)
+        FullPlayerCard.ABOUT_ARTIST -> Pair(
+            !songState.isArtistDetailLoading,
+            songState.artistDetail != null || songState.artists.any { it.artistDetail != null }
+        )
+        FullPlayerCard.ARTIST_ALBUMS -> Pair(!songState.isArtistAlbumsLoading, songState.artistAlbums.isNotEmpty())
+        FullPlayerCard.SIMILAR_ARTISTS -> Pair(!songState.isSimilarArtistsLoading, songState.similarArtists.isNotEmpty())
+    }
+
+    val cards = mutableListOf<FullPlayerCard>()
+    for (setting in cardLayout) {
+        if (!setting.visible) continue
+        val (settled, ready) = slotState(setting.card)
+        if (!settled) return VisibleInfoCards(cards, allSettled = false)
+        if (ready) cards += setting.card
+    }
+    return VisibleInfoCards(cards, allSettled = true)
+}
+
+// 播放器信息区：按用户配置的顺序与显隐展示歌词卡、评论预览、歌曲详情、歌手简介、歌手专辑、相似歌手
 fun LazyListScope.fullPlayerInfoSection(
+    songState: PlayerSongDetailState,
+    colors: PlayerBackdropPalette,
+    commentsState: CommentsState,
+    currentLyricIndex: Int,
+    cardLayout: List<FullPlayerCardSetting>,
+    onOpenFullScreenLyrics: () -> Unit,
+    onCommentsClick: () -> Unit,
+    onRetryComments: () -> Unit,
+    onFollowArtistClick: (Long?) -> Unit,
+    onArtistClick: (Long) -> Unit,
+    onEditCardsClick: () -> Unit,
+    onAlbumClick: (Long) -> Unit = {},
+    onSelectArtist: (Int) -> Unit = {}
+) {
+    val visible = visibleInfoCards(songState, commentsState, cardLayout)
+    for (card in visible.cards) {
+        item(key = card.key) {
+            FullPlayerItemEnterAnimation {
+                FullPlayerInfoCard(
+                    card = card,
+                    songState = songState,
+                    colors = colors,
+                    commentsState = commentsState,
+                    currentLyricIndex = currentLyricIndex,
+                    onOpenFullScreenLyrics = onOpenFullScreenLyrics,
+                    onCommentsClick = onCommentsClick,
+                    onRetryComments = onRetryComments,
+                    onFollowArtistClick = onFollowArtistClick,
+                    onArtistClick = onArtistClick,
+                    onAlbumClick = onAlbumClick,
+                    onSelectArtist = onSelectArtist
+                )
+            }
+        }
+    }
+    if (visible.allSettled) editCardsItem(onEditCardsClick)
+}
+
+// 等可见卡片全部出结论再出现，避免按钮先露出又被后到的卡片顶下去
+private fun LazyListScope.editCardsItem(onEditCardsClick: () -> Unit) {
+    item(key = EDIT_CARDS_KEY) {
+        FullPlayerItemEnterAnimation {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = MelodiaSpacing.sm),
+                contentAlignment = Alignment.Center
+            ) {
+                PlayerCapsuleButton(text = "编辑卡片", onClick = onEditCardsClick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullPlayerInfoCard(
+    card: FullPlayerCard,
     songState: PlayerSongDetailState,
     colors: PlayerBackdropPalette,
     commentsState: CommentsState,
@@ -28,107 +127,62 @@ fun LazyListScope.fullPlayerInfoSection(
     onRetryComments: () -> Unit,
     onFollowArtistClick: (Long?) -> Unit,
     onArtistClick: (Long) -> Unit,
-    onAlbumClick: (Long) -> Unit = {},
-    onSelectArtist: (Int) -> Unit = {}
+    onAlbumClick: (Long) -> Unit,
+    onSelectArtist: (Int) -> Unit
 ) {
-    val lyrics = songState.lyrics
-    val isPureMusic = lyrics.size == 1 && lyrics[0].text == "纯音乐"
-    val songWiki = songState.songWiki
-    val artistDetail = songState.artistDetail
-
-    // 每格 (是否已出结论, 结论是否要展示)，严格按声明顺序逐个放行
-    val slots = listOf(
-        "lyrics" to Pair(!songState.isLyricsLoading, lyrics.isNotEmpty() && !isPureMusic),
-        "comments_preview" to Pair(commentsState !is CommentsState.Loading, true),
-        "song_detail" to Pair(!songState.isSongWikiLoading, songWiki != null),
-        "about_artist" to Pair(!songState.isArtistDetailLoading, artistDetail != null || songState.artists.any { it.artistDetail != null }),
-        "artist_albums" to Pair(!songState.isArtistAlbumsLoading, songState.artistAlbums.isNotEmpty()),
-        "similar_artists" to Pair(!songState.isSimilarArtistsLoading, songState.similarArtists.isNotEmpty())
-    )
-
-    for ((key, state) in slots) {
-        val (settled, ready) = state
-        if (!settled) break
-        if (!ready) continue
-        when (key) {
-            "lyrics" -> item(key = "lyrics") {
-                FullPlayerItemEnterAnimation {
-                    LyricsCard(
-                        lyrics = lyrics,
-                        currentIndex = currentLyricIndex,
-                        isLoading = false,
-                        base = colors.base,
-                        onOpenFullScreen = onOpenFullScreenLyrics
-                    )
-                }
-            }
-            "comments_preview" -> item(key = "comments_preview") {
-                FullPlayerItemEnterAnimation {
-                    CommentsPreviewCard(
-                        commentsState = commentsState,
-                        cardColor = MaterialTheme.colorScheme.surface,
-                        onClick = onCommentsClick,
-                        onRetry = onRetryComments
-                    )
-                }
-            }
-            "song_detail" -> item(key = "song_detail") {
-                FullPlayerItemEnterAnimation {
-                    SongDetailCard(
-                        songWiki = songWiki,
-                        songDetail = songState.songDetail,
-                        cardColor = MaterialTheme.colorScheme.surface
-                    )
-                }
-            }
-            "about_artist" -> if (songState.artists.isNotEmpty()) {
-                item(key = "about_artist") {
-                    FullPlayerItemEnterAnimation {
-                        AboutArtistPagerCard(
-                            artists = songState.artists,
-                            selectedIndex = songState.selectedArtistIndex,
-                            onSelectArtist = onSelectArtist,
-                            onFollowArtistClick = { artistId -> onFollowArtistClick(artistId) },
-                            cardColor = MaterialTheme.colorScheme.surface,
-                            onArtistClick = onArtistClick
-                        )
-                    }
-                }
+    when (card) {
+        FullPlayerCard.LYRICS -> LyricsCard(
+            lyrics = songState.lyrics,
+            currentIndex = currentLyricIndex,
+            isLoading = false,
+            base = colors.base,
+            onOpenFullScreen = onOpenFullScreenLyrics
+        )
+        FullPlayerCard.COMMENTS_PREVIEW -> CommentsPreviewCard(
+            commentsState = commentsState,
+            cardColor = MaterialTheme.colorScheme.surface,
+            onClick = onCommentsClick,
+            onRetry = onRetryComments
+        )
+        FullPlayerCard.SONG_DETAIL -> SongDetailCard(
+            songWiki = songState.songWiki,
+            songDetail = songState.songDetail,
+            cardColor = MaterialTheme.colorScheme.surface
+        )
+        FullPlayerCard.ABOUT_ARTIST -> {
+            val artistDetail = songState.artistDetail
+            if (songState.artists.isNotEmpty()) {
+                AboutArtistPagerCard(
+                    artists = songState.artists,
+                    selectedIndex = songState.selectedArtistIndex,
+                    onSelectArtist = onSelectArtist,
+                    onFollowArtistClick = { artistId -> onFollowArtistClick(artistId) },
+                    cardColor = MaterialTheme.colorScheme.surface,
+                    onArtistClick = onArtistClick
+                )
             } else if (artistDetail != null) {
-                item(key = "about_artist") {
-                    FullPlayerItemEnterAnimation {
-                        AboutArtistCard(
-                            artistDetail = artistDetail,
-                            fansCount = songState.artistFansCount,
-                            isFollowed = songState.isArtistFollowed,
-                            onFollowClick = { onFollowArtistClick(artistDetail.id) },
-                            cardColor = MaterialTheme.colorScheme.surface,
-                            onClick = { onArtistClick(artistDetail.id) }
-                        )
-                    }
-                }
-            }
-            "artist_albums" -> item(key = "artist_albums") {
-                FullPlayerItemEnterAnimation {
-                    ArtistAlbumsCard(
-                        albums = songState.artistAlbums,
-                        artistName = songState.currentArtistItem?.artistName ?: songState.artistDetail?.name,
-                        cardColor = MaterialTheme.colorScheme.surface,
-                        onAlbumClick = onAlbumClick
-                    )
-                }
-            }
-            "similar_artists" -> item(key = "similar_artists") {
-                FullPlayerItemEnterAnimation {
-                    SimilarArtistsCard(
-                        artists = songState.similarArtists,
-                        isLoading = false,
-                        cardColor = MaterialTheme.colorScheme.surface,
-                        onArtistClick = onArtistClick
-                    )
-                }
+                AboutArtistCard(
+                    artistDetail = artistDetail,
+                    fansCount = songState.artistFansCount,
+                    isFollowed = songState.isArtistFollowed,
+                    onFollowClick = { onFollowArtistClick(artistDetail.id) },
+                    cardColor = MaterialTheme.colorScheme.surface,
+                    onClick = { onArtistClick(artistDetail.id) }
+                )
             }
         }
+        FullPlayerCard.ARTIST_ALBUMS -> ArtistAlbumsCard(
+            albums = songState.artistAlbums,
+            artistName = songState.currentArtistItem?.artistName ?: songState.artistDetail?.name,
+            cardColor = MaterialTheme.colorScheme.surface,
+            onAlbumClick = onAlbumClick
+        )
+        FullPlayerCard.SIMILAR_ARTISTS -> SimilarArtistsCard(
+            artists = songState.similarArtists,
+            isLoading = false,
+            cardColor = MaterialTheme.colorScheme.surface,
+            onArtistClick = onArtistClick
+        )
     }
 }
 

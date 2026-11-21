@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 // 播放器详情页数据仓储（player 业务域，仅服务于 PlayerViewModel）
 interface PlayerRepository {
+    fun getChorusStartTime(songId: Long): Flow<Result<Long?>> = kotlinx.coroutines.flow.flowOf(Result.success(null))
 
     fun getSongDetail(songId: Long): Flow<Result<Track>>
 

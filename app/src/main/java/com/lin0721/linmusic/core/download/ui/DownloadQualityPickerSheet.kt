@@ -26,6 +26,8 @@ import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
 import com.lin0721.linmusic.core.ui.theme.NeteaseRed
 import com.lin0721.linmusic.core.ui.theme.SvipGold
 import org.koin.compose.koinInject
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 // 可选下载音质档位
 private val DOWNLOAD_QUALITIES = listOf(
@@ -67,6 +69,7 @@ fun DownloadQualityPickerSheet(
     }
 
     ModalBottomSheet(
+        sheetMaxWidth = MelodiaSheetWidth,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = BackgroundDark,
@@ -82,72 +85,75 @@ fun DownloadQualityPickerSheet(
             )
         }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-        ) {
-            Text(
-                text = "选择下载音质",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-            )
-            DOWNLOAD_QUALITIES.forEach { quality ->
-                Row(
+        MelodiaSheetDensity {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onQualitySelected(quality) }
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .navigationBarsPadding()
+                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
                 ) {
                     Text(
-                        text = getQualityDisplayName(quality),
+                        text = "选择下载音质",
                         color = Color.White,
-                        fontSize = 15.sp,
-                        modifier = Modifier.weight(1f)
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
                     )
-                    if (quality == downloadedQuality) {
-                        Box(
+                    DOWNLOAD_QUALITIES.forEach { quality ->
+                        Row(
                             modifier = Modifier
-                                .border(1.dp, DownloadedGreen, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                                .fillMaxWidth()
+                                .clickable { onQualitySelected(quality) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "已下载",
-                                color = DownloadedGreen,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
+                                text = getQualityDisplayName(quality),
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                modifier = Modifier.weight(1f)
                             )
-                        }
-                        Spacer(Modifier.width(MelodiaSpacing.xs))
-                    }
-                    val planLabel = requiredPlanLabel(quality)
-                    val needsHigherPlan = if (maxRank != null) {
-                        qualityRank(quality) > maxRank
-                    } else {
-                        planLabel != null
-                    }
-                    if (needsHigherPlan) {
-                        val color = requiredPlanColor(quality)
-                        Box(
-                            modifier = Modifier
-                                .border(1.dp, color, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = planLabel ?: "会员",
-                                color = color,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            if (quality == downloadedQuality) {
+                                Box(
+                                    modifier = Modifier
+                                        .border(1.dp, DownloadedGreen, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "已下载",
+                                        color = DownloadedGreen,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(Modifier.width(MelodiaSpacing.xs))
+                            }
+                            val planLabel = requiredPlanLabel(quality)
+                            val needsHigherPlan = if (maxRank != null) {
+                                qualityRank(quality) > maxRank
+                            } else {
+                                planLabel != null
+                            }
+                            if (needsHigherPlan) {
+                                val color = requiredPlanColor(quality)
+                                Box(
+                                    modifier = Modifier
+                                        .border(1.dp, color, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = planLabel ?: "会员",
+                                        color = color,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-            }
+
         }
     }
 }

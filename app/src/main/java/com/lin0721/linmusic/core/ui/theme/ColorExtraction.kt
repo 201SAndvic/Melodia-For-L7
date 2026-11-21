@@ -13,6 +13,10 @@ import com.lin0721.linmusic.core.ui.theme.vibrant.VibrantSwatch
 import com.lin0721.linmusic.core.ui.theme.vibrant.defaultVibrantFilter
 import com.lin0721.linmusic.core.ui.theme.vibrant.generateVibrantPalette
 import com.lin0721.linmusic.core.ui.theme.vibrant.medianCutQuantize
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import com.lin0721.linmusic.core.network.SharedResultCache
 
 private const val TAG = "ColorExtraction"
 
@@ -22,6 +26,7 @@ data class PlayerBackdropPalette(
     val swatches: VibrantPalette,
     val base: Color,
     val textHighlight: Color,
+    val isFallback: Boolean = false,
 )
 
 // candidate swatch 色度均低于此值时，视为黑白/灰阶封面，不编造色相。
@@ -35,6 +40,7 @@ val FallbackBackdropPalette = PlayerBackdropPalette(
     swatches = EmptyVibrantPalette,
     base = FallbackBase,
     textHighlight = lerp(FallbackBase, Color.White, 0.85f),
+    isFallback = true,
 )
 
 // 取色算法对齐 node-vibrant 默认配置：64 色量化、quality=5 等比例降采样
@@ -43,11 +49,18 @@ private const val VIBRANT_QUALITY = 5
 
 // 取色专用的解码尺寸上限（最长边），复用 ArtistBackdrop 已在用的 640 规格，保持原图宽高比解码
 private const val DECODE_MAX_DIMENSION = 640
+private val sharedPaletteRequests = SharedResultCache<String, PlayerBackdropPalette>(cacheValue = { !it.isFallback })
 
 // 取色专用的独立解码请求，跟各处 UI 实际显示尺寸完全脱钩。
 suspend fun extractBackdropPaletteFromUrl(context: Context, url: String): PlayerBackdropPalette {
     val canonicalUrl = url.substringBefore("?param=")
     if (canonicalUrl.isBlank()) return FallbackBackdropPalette
+    return sharedPaletteRequests.get(canonicalUrl) {
+        Result.success(extractUncachedPalette(context.applicationContext, canonicalUrl))
+    }.getOrDefault(FallbackBackdropPalette)
+}
+
+private suspend fun extractUncachedPalette(context: Context, canonicalUrl: String): PlayerBackdropPalette {
     return try {
         val request = ImageRequest.Builder(context)
             .data(canonicalUrl)
@@ -55,7 +68,12 @@ suspend fun extractBackdropPaletteFromUrl(context: Context, url: String): Player
             .allowHardware(false)
             .build()
         val drawable = context.imageLoader.execute(request).drawable ?: return FallbackBackdropPalette
-        extractBackdropPalette(drawable)
+        // 解码由 Coil 负责（后台线程），但取色本身的缩放/量化是纯 CPU 活儿，
+        // 原先直接跑在调用方（组合里的 LaunchedEffect）即主线程上，车机弱 CPU 上会卡住首帧；
+        // 这里统一切到 Default 线程池再算
+        withContext(Dispatchers.Default) { extractBackdropPalette(drawable) }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         AppLogger.d(TAG, "取色请求失败，使用默认深灰色板", e)
         FallbackBackdropPalette
@@ -158,9 +176,12 @@ internal fun pickBaseColor(palette: VibrantPalette): Color {
 object PaletteMemoryCache {
     private val cache = android.util.LruCache<String, PlayerBackdropPalette>(150)
 
-    fun get(mediaId: String): PlayerBackdropPalette? = cache.get(mediaId)
+    fun key(mediaId: String, coverUrl: String): String =
+        "$mediaId|${coverUrl.substringBefore("?param=")}"
 
-    fun put(mediaId: String, palette: PlayerBackdropPalette) {
-        cache.put(mediaId, palette)
+    fun get(cacheKey: String): PlayerBackdropPalette? = cache.get(cacheKey)
+
+    fun put(cacheKey: String, palette: PlayerBackdropPalette) {
+        if (!palette.isFallback) cache.put(cacheKey, palette)
     }
 }

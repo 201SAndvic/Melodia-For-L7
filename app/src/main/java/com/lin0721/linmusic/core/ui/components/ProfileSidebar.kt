@@ -48,6 +48,11 @@ fun ProfileSidebar(
     onNavigateToCloud: () -> Unit,
     onNavigateToMessage: () -> Unit,
     onNavigateToAccount: () -> Unit,
+    onNavigateToDualDisplay: () -> Unit,
+    onNavigateToPerformance: () -> Unit,
+    onNavigateToLyricCardColors: () -> Unit,
+    onNavigateToLyricPush: () -> Unit,
+    onNavigateToDiagnostics: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
     Column(
@@ -115,32 +120,57 @@ fun ProfileSidebar(
             SidebarMenuItem(
                 icon = Icons.Outlined.History,
                 title = "最近播放",
-                onClick = { onDismiss(); onNavigateToRecentPlay() }
+                onClick = onNavigateToRecentPlay
             )
             SidebarMenuItem(
                 icon = Icons.Outlined.Insights,
                 title = "听歌数据",
-                onClick = { onDismiss(); onNavigateToListenData() }
+                onClick = onNavigateToListenData
             )
             SidebarMenuItem(
                 icon = Icons.Outlined.CloudQueue,
                 title = "我的云盘",
-                onClick = { onDismiss(); onNavigateToCloud() }
+                onClick = onNavigateToCloud
             )
             SidebarMenuItem(
                 icon = Icons.Outlined.Notifications,
                 title = "消息",
-                onClick = { onDismiss(); onNavigateToMessage() }
+                onClick = onNavigateToMessage
             )
             SidebarMenuItem(
                 icon = Icons.Outlined.WorkspacePremium,
                 title = "账号与会员",
-                onClick = { onDismiss(); onNavigateToAccount() }
+                onClick = onNavigateToAccount
+            )
+            SidebarMenuItem(
+                icon = Icons.Outlined.Devices,
+                title = "异屏同显",
+                onClick = onNavigateToDualDisplay
+            )
+            SidebarMenuItem(
+                icon = Icons.Outlined.BatterySaver,
+                title = "性能优化",
+                onClick = onNavigateToPerformance
+            )
+            SidebarMenuItem(
+                icon = Icons.Outlined.Palette,
+                title = "歌词卡片取色",
+                onClick = onNavigateToLyricCardColors
+            )
+            SidebarMenuItem(
+                icon = Icons.Outlined.Subtitles,
+                title = "歌词推送",
+                onClick = onNavigateToLyricPush
+            )
+            SidebarMenuItem(
+                icon = Icons.Outlined.Troubleshoot,
+                title = "诊断与日志",
+                onClick = onNavigateToDiagnostics
             )
             SidebarMenuItem(
                 icon = Icons.Outlined.Settings,
                 title = "设置和隐私",
-                onClick = { onDismiss(); onNavigateToSettings() }
+                onClick = onNavigateToSettings
             )
         }
 

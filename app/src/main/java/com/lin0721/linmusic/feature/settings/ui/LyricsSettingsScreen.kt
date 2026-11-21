@@ -20,6 +20,8 @@ import com.lin0721.linmusic.LocalBottomOverlayInset
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.DragHandleShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaSpacing
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,11 +31,13 @@ fun LyricsSettingsView(viewModel: SettingsViewModel) {
     val lyricTextColor by viewModel.lyricTextColor.collectAsStateWithLifecycle()
     val superLyricEnabled by viewModel.superLyricEnabled.collectAsStateWithLifecycle()
     val lyricInfoEnabled by viewModel.lyricInfoEnabled.collectAsStateWithLifecycle()
+    val lyricInfoOutputSettings by viewModel.lyricInfoOutputSettings.collectAsStateWithLifecycle()
     val bluetoothLyricEnabled by viewModel.bluetoothLyricEnabled.collectAsStateWithLifecycle()
     val lyriconEnabled by viewModel.lyriconEnabled.collectAsStateWithLifecycle()
 
     var showSizeSheet by remember { mutableStateOf(false) }
     var showColorSheet by remember { mutableStateOf(false) }
+    var showLyricInfoOutput by remember { mutableStateOf(false) }
 
     val sizeLabel = "${lyricTextSize} sp"
     val colorLabel = when (lyricTextColor) {
@@ -80,12 +84,8 @@ fun LyricsSettingsView(viewModel: SettingsViewModel) {
                         onCheckedChange = { viewModel.updateSuperLyricEnabled(it) }
                     )
                     HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                    SettingsSwitchRow(
-                        title = "LyricInfo 系统歌词（测试）",
-                        subtitle = "向系统媒体会话元数据注入整轨歌词 JSON，供锁屏岛等插件读取",
-                        checked = lyricInfoEnabled,
-                        onCheckedChange = { viewModel.updateLyricInfoEnabled(it) }
-                    )
+                    LyricInfoEnabledRow(lyricInfoEnabled, viewModel::updateLyricInfoEnabled)
+                    SettingsRow("LyricInfo · HUD输出设置", "中英文/其他语种选择、纯歌词兼容输出、纯音乐清屏") { showLyricInfoOutput = !showLyricInfoOutput }
                     HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
                     SettingsSwitchRow(
                         title = "车载蓝牙歌词（测试）",
@@ -102,12 +102,16 @@ fun LyricsSettingsView(viewModel: SettingsViewModel) {
                     )
                 }
             }
+            if (showLyricInfoOutput) {
+                item { LyricInfoOutputSettingsCard(lyricInfoOutputSettings, viewModel::updateLyricInfoOutputSettings) }
+            }
         }
 
         // 字号选择弹层
         if (showSizeSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ModalBottomSheet(
+                sheetMaxWidth = MelodiaSheetWidth,
                 onDismissRequest = { showSizeSheet = false },
                 sheetState = sheetState,
                 containerColor = MaterialTheme.colorScheme.background,
@@ -123,44 +127,47 @@ fun LyricsSettingsView(viewModel: SettingsViewModel) {
                     )
                 }
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-                ) {
-                    Text(
-                        text = "选择悬浮歌词字号",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-                    )
+                MelodiaSheetDensity {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
+                                ) {
+                                    Text(
+                                        text = "选择悬浮歌词字号",
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                                    )
 
-                    val options = listOf(12, 14, 16, 18, 20)
-                    options.forEach { size ->
-                        val isSelected = lyricTextSize == size
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.updateLyricTextSize(size)
-                                    showSizeSheet = false
+                                    val options = listOf(12, 14, 16, 18, 20)
+                                    options.forEach { size ->
+                                        val isSelected = lyricTextSize == size
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.updateLyricTextSize(size)
+                                                    showSizeSheet = false
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "${size} sp",
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 15.sp
+                                            )
+                                            if (isSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    }
                                 }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "${size} sp",
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 15.sp
-                            )
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
+
                 }
             }
         }
@@ -169,6 +176,7 @@ fun LyricsSettingsView(viewModel: SettingsViewModel) {
         if (showColorSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ModalBottomSheet(
+                sheetMaxWidth = MelodiaSheetWidth,
                 onDismissRequest = { showColorSheet = false },
                 sheetState = sheetState,
                 containerColor = MaterialTheme.colorScheme.background,
@@ -184,48 +192,51 @@ fun LyricsSettingsView(viewModel: SettingsViewModel) {
                     )
                 }
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
-                ) {
-                    Text(
-                        text = "选择悬浮歌词颜色",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
-                    )
+                MelodiaSheetDensity {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .padding(start = MelodiaSpacing.lg, end = MelodiaSpacing.lg, bottom = MelodiaSpacing.lg)
+                                ) {
+                                    Text(
+                                        text = "选择悬浮歌词颜色",
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(bottom = MelodiaSpacing.md)
+                                    )
 
-                    val options = listOf(
-                        "#FFFFFF" to "白色",
-                        "#E03E3E" to "网易红",
-                        "#10B981" to "绿色"
-                    )
-                    options.forEach { (colorCode, label) ->
-                        val isSelected = lyricTextColor == colorCode
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.updateLyricTextColor(colorCode)
-                                    showColorSheet = false
+                                    val options = listOf(
+                                        "#FFFFFF" to "白色",
+                                        "#E03E3E" to "网易红",
+                                        "#10B981" to "绿色"
+                                    )
+                                    options.forEach { (colorCode, label) ->
+                                        val isSelected = lyricTextColor == colorCode
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.updateLyricTextColor(colorCode)
+                                                    showColorSheet = false
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 15.sp
+                                            )
+                                            if (isSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    }
                                 }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 15.sp
-                            )
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
+
                 }
             }
         }

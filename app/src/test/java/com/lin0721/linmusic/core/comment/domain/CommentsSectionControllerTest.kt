@@ -11,6 +11,9 @@ import com.lin0721.linmusic.core.network.ResourceProvider
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,6 +35,50 @@ class CommentsSectionControllerTest {
             onToast = {},
             resourceProvider = fakeResourceProvider
         )
+
+    @Test
+    fun `暂停自动加载不会请求且主动重试使用当前歌曲`() = runTest {
+        val repository = FakeCommentRepository()
+        val controller = newController(repository, this)
+        controller.pauseLoadingFor("R_SO_4_2")
+        advanceUntilIdle()
+        assertEquals(null, repository.lastGetCommentsV2Call)
+        controller.retry()
+        advanceUntilIdle()
+        assertEquals("R_SO_4_2", repository.lastGetCommentsV2Call?.threadId)
+        assertTrue(controller.commentsState.value is CommentsState.Success)
+    }
+
+    @Test
+    fun `开启暂停加载会取消正在运行的评论请求`() = runTest {
+        var cancelled = false
+        val repository = FakeCommentRepository().apply {
+            commentsV2Flow = flow { try { awaitCancellation() } finally { cancelled = true } }
+        }
+        val controller = newController(repository, this)
+        controller.load("R_SO_4_1")
+        runCurrent()
+        controller.pauseLoadingFor("R_SO_4_1")
+        runCurrent()
+        assertTrue(cancelled)
+        repository.commentsV2Flow = null
+        controller.retry()
+        advanceUntilIdle()
+        assertTrue(controller.commentsState.value is CommentsState.Success)
+    }
+
+    @Test
+    fun `暂停与恢复同一歌曲保留已加载评论缓存`() = runTest {
+        val repository = FakeCommentRepository()
+        val controller = newController(repository, this)
+        controller.load("R_SO_4_1")
+        advanceUntilIdle()
+        val loaded = controller.commentsState.value
+        controller.pauseLoadingFor("R_SO_4_1")
+        controller.load("R_SO_4_1")
+        advanceUntilIdle()
+        assertEquals(loaded, controller.commentsState.value)
+    }
 
     @Test
     fun `load成功后状态为Success且带上第一页游标信息`() = runTest {

@@ -6,6 +6,10 @@ import kotlinx.coroutines.flow.asStateFlow
 
 // 播放队列的内存模型：维护原始顺序与实际播放顺序、当前下标、播放模式与播放来源
 class PlaybackQueue {
+    // User queue edits invalidate asynchronous fills. Playback position changes do not.
+    var revision: Long = 0L
+        private set
+    val upcomingCount: Int get() = (size - _currentIndex.value - 1).coerceAtLeast(0)
 
     // 用户选中时的原始顺序，随机播放时作为还原基准
     private var originalItems: List<QueueItem> = emptyList()
@@ -53,6 +57,7 @@ class PlaybackQueue {
     }
 
     fun setPlayContext(context: String?) {
+        if (_playContext.value != context) revision++
         _playContext.value = context
     }
 
@@ -85,6 +90,7 @@ class PlaybackQueue {
     // 随机模式下要按当前 playMode 重新打乱，否则 playItems 会是未打乱的原始顺序，跟随机模式的语义不符
     fun restore(items: List<QueueItem>, index: Int, context: String?) {
         if (items.isEmpty()) return
+        revision++
         originalItems = items
         val safeIndex = index.coerceIn(0, items.size - 1)
         if (_playMode.value == PlayMode.SHUFFLE) {
@@ -101,6 +107,7 @@ class PlaybackQueue {
     // 整体替换队列，随机模式下打乱并把起始曲目提到首位
     fun replaceAll(items: List<QueueItem>, startIndex: Int) {
         if (items.isEmpty()) return
+        revision++
         originalItems = items
         if (_playMode.value == PlayMode.SHUFFLE) {
             playItems = shufflePreservingCurrent(items, startIndex)
@@ -114,6 +121,7 @@ class PlaybackQueue {
 
     // 队列收缩为单曲
     fun replaceWithSingle(item: QueueItem) {
+        revision++
         originalItems = listOf(item)
         playItems = listOf(item)
         _currentIndex.value = 0
@@ -123,6 +131,7 @@ class PlaybackQueue {
     // 插播到“下一首”位置
     fun insertNext(items: List<QueueItem>) {
         if (items.isEmpty()) return
+        revision++
         val curIndex = _currentIndex.value
         val targetInsertIndex = curIndex + 1
 
@@ -152,6 +161,7 @@ class PlaybackQueue {
     // 移除指定项，返回需要重新起播的下标，无需重播时返回 -1
     fun removeAt(index: Int): Int {
         if (index < 0 || index >= playItems.size || playItems.size <= 1) return -1
+        revision++
         val removedItem = playItems[index]
         val mutablePlay = playItems.toMutableList()
         mutablePlay.removeAt(index)
@@ -179,6 +189,7 @@ class PlaybackQueue {
     fun move(from: Int, to: Int): Boolean {
         if (from == to) return false
         if (from < 0 || from >= playItems.size || to < 0 || to >= playItems.size) return false
+        revision++
         val mutable = playItems.toMutableList()
         val item = mutable.removeAt(from)
         mutable.add(to, item)
@@ -198,6 +209,7 @@ class PlaybackQueue {
 
     // 切换播放模式并按新模式重排实际播放顺序
     fun applyMode(newMode: PlayMode, currentItem: QueueItem?) {
+        if (_playMode.value != newMode) revision++
         _playMode.value = newMode
         if (currentItem == null || originalItems.isEmpty()) return
         when (newMode) {
@@ -217,6 +229,7 @@ class PlaybackQueue {
 
     // 只保留当前播放项，返回被保留的项；当前无播放项时清空队列并返回 null
     fun keepOnlyCurrent(): QueueItem? {
+        revision++
         val curIndex = _currentIndex.value
         val currentTrackItem = if (curIndex in playItems.indices) playItems[curIndex] else null
         if (currentTrackItem != null) {
@@ -233,13 +246,15 @@ class PlaybackQueue {
         return currentTrackItem
     }
 
-    // 截断到指定下标后追加新曲目，用于漫游续播
-    fun appendAfter(index: Int, items: List<QueueItem>) {
-        if (items.isEmpty()) return
-        val newQueue = originalItems.take(index + 1) + items
-        originalItems = newQueue
-        playItems = newQueue
+    // Append without changing the current item or dropping unplayed tracks.
+    fun extend(items: List<QueueItem>): Boolean {
+        val seen = originalItems.mapTo(HashSet()) { it.songId }
+        val fresh = items.filter { seen.add(it.songId) }
+        if (fresh.isEmpty()) return false
+        originalItems = originalItems + fresh
+        playItems = playItems + if (_playMode.value == PlayMode.SHUFFLE) fresh.shuffled() else fresh
         _items.value = playItems
+        return true
     }
 
     // 备份当前队列与播放上下文，供退出漫游/心动模式时还原
@@ -252,6 +267,7 @@ class PlaybackQueue {
     // 还原备份的队列，并把当前正在播放的曲目定位到新队列中
     fun restoreSnapshot() {
         if (snapshotItems.isEmpty()) return
+        revision++
         originalItems = snapshotItems
         val currentTrackItem = playItems.getOrNull(_currentIndex.value)
         val newIndex = if (currentTrackItem != null) {

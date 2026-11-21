@@ -14,6 +14,7 @@ import com.lin0721.linmusic.core.download.DownloadTrackInfo
 import com.lin0721.linmusic.core.download.SongDownloadManager
 import com.lin0721.linmusic.core.localmusic.LocalCoverArtCache
 import com.lin0721.linmusic.core.log.AppLogger
+import com.lin0721.linmusic.core.log.PerformanceMonitor
 import com.lin0721.linmusic.core.network.AppError
 import com.lin0721.linmusic.core.player.data.PlaybackRepository
 import com.lin0721.linmusic.core.preferences.SettingsPreferences
@@ -29,8 +30,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private const val TAG = "PlayerManager"
 
@@ -81,9 +86,15 @@ class PlayerManager(
     val preferredOutputDeviceId: StateFlow<Int?> = _preferredOutputDeviceId.asStateFlow()
 
     private val controllerHolder = MediaControllerHolder(context)
+    private val controllerInitMutex = Mutex()
+    private val fastPositionSubscribers = mutableSetOf<Any>()
+    private var slowProgressUpdates = false
     private val playbackQueue = PlaybackQueue()
     private val progress = PlaybackProgressTracker(scope, controllerHolder)
     private val stateStore = PlaybackStateStore(scope, playbackPreferences)
+    private val queueCompletion = QueueCompletionController(scope, playbackQueue, ::saveQueueState) {
+        AppLogger.w(TAG, "后台补齐队列失败，保留已加载曲目", it)
+    }
     private val coverPreloader = TrackCoverPreloader(context)
     private val sleepTimer = SleepTimer(scope) { pause() }
     private val roaming = SimilarRoamingController(scope, repository, settingsPreferences, playbackQueue, stateStore)
@@ -162,6 +173,14 @@ class PlayerManager(
             }
         }
 
+        scope.launch {
+            settingsPreferences.performanceOptimizations
+                .map { it.enabled(com.lin0721.linmusic.core.preferences.PerformanceOptimization.SLOW_PROGRESS) }
+                .distinctUntilChanged().collect { enabled ->
+                slowProgressUpdates = enabled
+                progress.setUpdateInterval(positionIntervalFor(fastPositionSubscribers.isNotEmpty(), enabled))
+            }
+        }
         progress.start(
             isPlaying = { _isPlaying.value },
             onTick = { positionMs ->
@@ -187,12 +206,17 @@ class PlayerManager(
         progress.setUpdateInterval(intervalMs)
     }
 
+    fun setFastPositionUpdates(token: Any, enabled: Boolean) {
+        if (enabled) fastPositionSubscribers.add(token) else fastPositionSubscribers.remove(token)
+        progress.setUpdateInterval(positionIntervalFor(fastPositionSubscribers.isNotEmpty(), slowProgressUpdates))
+    }
+
     fun setSleepTimer(minutes: Int) {
         sleepTimer.start(minutes)
     }
 
-    suspend fun initController() {
-        if (controllerHolder.isConnected) return
+    suspend fun initController() = controllerInitMutex.withLock {
+        if (controllerHolder.isConnected) return@withLock
 
         val lastTrack = stateStore.loadLastTrack()
         if (lastTrack != null && _currentTrack.value == null) {
@@ -221,6 +245,7 @@ class PlayerManager(
     // 设置队列并从指定位置开始播放
     fun playQueue(items: List<QueueItem>, startIndex: Int, playContext: String? = null) {
         if (items.isEmpty()) return
+        queueCompletion.cancel()
 
         if (playContext == SimilarRoamingController.CONTEXT_ROAMING) {
             roaming.prepare()
@@ -244,11 +269,16 @@ class PlayerManager(
 
         if ((playContext == CONTEXT_INTELLIGENCE || playContext == SimilarRoamingController.CONTEXT_ROAMING) && isCurrentPlayingTrack) {
             // 以当前正在播放的曲目为种子时平滑衔接，不重载音频与重置进度
-            roaming.prefetchOnPlay(targetItem.songId, currentIndex)
+            roaming.prefetchOnPlay(targetItem.songId)
             return
         }
 
         fetchUrlAndPlay(currentIndex)
+    }
+
+    // Capture revision immediately after playQueue on main; a page disappearing does not cancel this.
+    fun completeQueueInBackground(batches: List<List<Long>>, load: suspend (List<Long>) -> List<QueueItem>) {
+        queueCompletion.start(playbackQueue.revision, batches, load)
     }
 
     // 单曲播放（向后兼容，创建 1 项队列）
@@ -483,6 +513,8 @@ class PlayerManager(
         val fromIndex = playbackQueue.currentIndex.value
 
         activePlayJob = scope.launch {
+            val fetchStartedAt = SystemClock.elapsedRealtime()
+            PerformanceMonitor.mark("track_prepare_start", "songId=${item.songId} local=${item.localUri != null} prefetched=${prefetchedUrl != null}")
             // 本地外部音频直接播放
             if (item.localUri != null) {
                 playbackQueue.setCurrentIndex(index)
@@ -497,8 +529,9 @@ class PlayerManager(
 
             // 本地已下载文件优先播放
             val localRecord = downloadPreferences.findVerifiedRecord(item.songId)
+            val cachedAudio = if (localRecord == null) repository.getCompleteCachedAudio(item.songId) else null
 
-            if (localRecord == null && networkGuard.blockPlaybackOnMobile()) {
+            if (localRecord == null && cachedAudio == null && networkGuard.blockPlaybackOnMobile()) {
                 pendingStartPosition = 0L
                 return@launch
             }
@@ -511,7 +544,7 @@ class PlayerManager(
             // 立即重置当前进度与时长；断点续播时保留已有时长避免进度条闪烁
             progress.resetTo(startPosition, preserveDuration = startPosition > 0L)
 
-            roaming.prefetchOnPlay(item.songId, index)
+            if (cachedAudio == null) roaming.prefetchOnPlay(item.songId)
 
             if (localRecord != null) {
                 val artworkUri = localCoverArtCache.coverUriFor(android.net.Uri.parse(localRecord.mediaStoreUri))?.toString()
@@ -521,17 +554,30 @@ class PlayerManager(
                 return@launch
             }
 
+            if (cachedAudio != null) {
+                PerformanceMonitor.mark("audio_cache_hit", "songId=${item.songId} complete=true")
+                pendingSkipFromIndex = null
+                controllerHolder.playItem(item.toMediaItem(cachedAudio.url, playbackQueue.playContext.value,
+                    customCacheKey = cachedAudio.cacheKey), playbackQueue.playMode.value, startPosition)
+                return@launch
+            }
+
             // 命中预取缓存时跳过网络请求，最大限度缩短切歌间隙
             if (prefetchedUrl != null) {
-                val mediaItem = item.toMediaItem(prefetchedUrl, playbackQueue.playContext.value)
+                val mediaItem = item.toMediaItem(prefetchedUrl, playbackQueue.playContext.value,
+                    customCacheKey = repository.cacheKeyForSongUrl(item.songId, prefetchedUrl))
                 pendingSkipFromIndex = null
                 controllerHolder.playItem(mediaItem, playbackQueue.playMode.value, startPosition)
                 return@launch
             }
 
-            repository.getSongUrl(item.songId).collect { result ->
-                result.onSuccess { url ->
-                    val mediaItem = item.toMediaItem(url, playbackQueue.playContext.value)
+            repository.getSongAudioInfo(item.songId).collect { result ->
+                result.onSuccess { info ->
+                    PerformanceMonitor.mark(
+                        "track_url_ready",
+                        "songId=${item.songId} elapsedMs=${SystemClock.elapsedRealtime() - fetchStartedAt}"
+                    )
+                    val mediaItem = item.toMediaItem(info.url, playbackQueue.playContext.value, customCacheKey = info.cacheKey)
                     pendingSkipFromIndex = null
                     controllerHolder.playItem(mediaItem, playbackQueue.playMode.value, startPosition)
                 }.onFailure { throwable ->
@@ -580,6 +626,13 @@ class PlayerManager(
         if (item.songId <= 0L || item.localUri != null) return
         if (!streamCacheTriggeredSongIds.add(item.songId)) return
         scope.launch(Dispatchers.IO) {
+            // Passive weak-network caching reuses the bytes already being read.
+            // Avoid a second full download/tagging task alongside this playback.
+            if (settingsPreferences.weakNetworkCacheEnabled.first()) {
+                // Remember this decision for the track, rather than launching
+                // another DataStore check on every high-frequency progress tick.
+                return@launch
+            }
             val enabled = settingsPreferences.streamCacheEnabled.first()
             if (!enabled) {
                 streamCacheTriggeredSongIds.remove(item.songId)
@@ -655,6 +708,7 @@ class PlayerManager(
     }
 
     fun release() {
+        queueCompletion.cancel()
         reportPlayedTrack()
         networkGuard.unregister()
         sleepTimer.cancel()
@@ -756,6 +810,10 @@ class PlayerManager(
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
         AppLogger.i(TAG, "切歌: songId=${mediaItem?.mediaId} reason=${transitionReasonName(reason)}")
+        PerformanceMonitor.mark(
+            "track_transition",
+            "songId=${mediaItem?.mediaId ?: "none"} reason=${transitionReasonName(reason)}"
+        )
         reportPlayedTrack()
         resetTrackTiming()
         _currentTrack.value = mediaItem
@@ -778,8 +836,14 @@ class PlayerManager(
 
     override fun onPlaybackStateChanged(playbackState: Int) {
         AppLogger.i(TAG, "播放状态变化: ${playbackStateName(playbackState)}")
+        PerformanceMonitor.mark(
+            "playback_state",
+            "state=${playbackStateName(playbackState)} songId=${_currentTrack.value?.mediaId ?: "none"}"
+        )
         if (playbackState == Player.STATE_READY) {
             progress.updateDurationFromController()
+            // READY can be emitted more than once while a stream settles. The preloader
+            // deduplicates the URL so repeated callbacks do not enqueue duplicate decodes.
             playbackQueue.nextItemByMode()?.let { coverPreloader.preload(it.coverUrl) }
         }
         // 单曲循环由 ExoPlayer REPEAT_MODE_ONE 处理，不会到达 STATE_ENDED

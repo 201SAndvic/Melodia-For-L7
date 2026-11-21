@@ -13,6 +13,8 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import com.lin0721.linmusic.core.ui.components.MelodiaIconButton
 import com.lin0721.linmusic.core.player.PlayMode
 import com.lin0721.linmusic.core.ui.interaction.pressable
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetDensity
+import com.lin0721.linmusic.core.ui.layout.MelodiaSheetWidth
 import com.lin0721.linmusic.core.ui.theme.BottomSheetShape
 import com.lin0721.linmusic.core.ui.theme.DragHandleShape
 import com.lin0721.linmusic.core.ui.theme.MelodiaPress
@@ -148,7 +152,10 @@ fun LyricCapsuleSlider(
     value: Int,
     onValueChange: (Int) -> Unit,
     valueRange: ClosedFloatingPointRange<Float> = 16f..32f,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // 两端指示符文案：字号滑块用 A/A，间距滑块用「窄/宽」
+    startLabel: String = "A",
+    endLabel: String = "A"
 ) {
     var componentWidthPx by remember { mutableFloatStateOf(1f) }
     val progressFraction = remember(value, valueRange) {
@@ -198,7 +205,7 @@ fun LyricCapsuleSlider(
                 .background(MaterialTheme.colorScheme.primary)
         )
 
-        // 胶囊两端字号视觉指示符
+        // 胶囊两端视觉指示符
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -207,13 +214,13 @@ fun LyricCapsuleSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "A",
+                text = startLabel,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White.copy(alpha = 0.85f)
             )
             Text(
-                text = "A",
+                text = endLabel,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White.copy(alpha = 0.85f)
@@ -222,14 +229,58 @@ fun LyricCapsuleSlider(
     }
 }
 
+// 单条滑块设置项：标题 + 当前值 + 胶囊滑块，三组设置（字号/行距/副文本距）共用
+@Composable
+private fun LyricSliderSetting(
+    label: String,
+    valueText: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    startLabel: String = "A",
+    endLabel: String = "A"
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp)
+            Text(
+                text = valueText,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        LyricCapsuleSlider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            startLabel = startLabel,
+            endLabel = endLabel
+        )
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
-// 全屏歌词快捷设置弹窗（字号大小、对齐方式、副文本展示）
+// 全屏歌词快捷设置弹窗（字号、行间距、副文本间距、对齐方式、副文本展示）
 // ────────────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullScreenLyricsSettingsSheet(
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
+    lineSpacing: Int,
+    onLineSpacingChange: (Int) -> Unit,
+    secondarySpacing: Int,
+    onSecondarySpacingChange: (Int) -> Unit,
     alignment: String,
     onAlignmentChange: (String) -> Unit,
     secondaryMode: String,
@@ -245,6 +296,7 @@ fun FullScreenLyricsSettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        sheetMaxWidth = MelodiaSheetWidth,
         containerColor = MaterialTheme.colorScheme.background,
         shape = BottomSheetShape,
         dragHandle = {
@@ -258,10 +310,13 @@ fun FullScreenLyricsSettingsSheet(
             )
         }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
+        MelodiaSheetDensity {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 三组滑块 + 对齐/副文本/卡拉OK 选项在车机矮屏上会超高，这里允许整块滚动
+                    .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
                 .padding(horizontal = MelodiaSpacing.lg)
                 .padding(bottom = MelodiaSpacing.lg)
         ) {
@@ -273,32 +328,34 @@ fun FullScreenLyricsSettingsSheet(
                 modifier = Modifier.padding(bottom = MelodiaSpacing.md)
             )
 
-            // 字号调节（iOS 风格胶囊滑块）
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("歌词字号大小", color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp)
-                    Text(
-                        text = "${fontSize} sp",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                LyricCapsuleSlider(
-                    value = fontSize,
-                    onValueChange = onFontSizeChange,
-                    valueRange = 16f..32f
-                )
-            }
+            // 字号 / 行间距 / 原词与翻译间距调节（iOS 风格胶囊滑块）
+            LyricSliderSetting(
+                label = "歌词字号大小",
+                valueText = "${fontSize} sp",
+                value = fontSize,
+                onValueChange = onFontSizeChange,
+                valueRange = 16f..32f
+            )
+
+            LyricSliderSetting(
+                label = "歌词行间距",
+                valueText = "${lineSpacing} dp",
+                value = lineSpacing,
+                onValueChange = onLineSpacingChange,
+                valueRange = 8f..48f,
+                startLabel = "窄",
+                endLabel = "宽"
+            )
+
+            LyricSliderSetting(
+                label = "歌词与翻译/音译间距",
+                valueText = "${secondarySpacing} dp",
+                value = secondarySpacing,
+                onValueChange = onSecondarySpacingChange,
+                valueRange = 0f..24f,
+                startLabel = "窄",
+                endLabel = "宽"
+            )
 
             Spacer(modifier = Modifier.height(MelodiaSpacing.sm))
 
@@ -412,6 +469,7 @@ fun FullScreenLyricsSettingsSheet(
             }
         }
     }
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -441,7 +499,7 @@ fun FullScreenControls(
     var isSeeking by remember { mutableStateOf(false) }
     var seekPosition by remember { mutableFloatStateOf(0f) }
 
-    val currentPosition = currentPositionProvider()
+    val currentPosition = com.lin0721.linmusic.core.ui.layout.sampledProgressPosition(currentPositionProvider)
     val progress = if (duration > 0) {
         if (isSeeking) seekPosition else currentPosition.toFloat() / duration
     } else 0f
@@ -661,4 +719,3 @@ fun FullScreenControls(
         }
     }
 }
-
