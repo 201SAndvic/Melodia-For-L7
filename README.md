@@ -1,12 +1,20 @@
 # Melodia For L7
 
-面向**吉利银河 L7 / FlymeAuto** 的 Melodia Android 车机适配版。它以 [rinchao0721/Melodia](https://github.com/rinchao0721/Melodia) 为基础，保留第三方网易云音乐客户端的播放、歌单和歌词功能，并针对车内的主驾竖屏与副驾宽屏调整布局和交互。这是社区维护的 Fork。
+面向**吉利银河 L7 / FlymeAuto** 的 Melodia Android 车机适配版。它以 [rinchao0721/Melodia](https://github.com/rinchao0721/Melodia) 为基础，保留第三方网易云音乐客户端的播放、歌单和歌词功能，支持主驾竖屏与副驾宽屏异屏同显：两块屏幕可以同时显示同一首歌，各自使用适合本屏的布局。这是社区维护的 Fork。
 
 **[下载 Melodia For L7 2026.11.21](https://github.com/201SAndvic/Melodia-For-L7/releases/tag/l7-2026.11.21)** · [全部版本](https://github.com/201SAndvic/Melodia-For-L7/releases)
 
+## 主屏与副屏同显
+
+以 **《Fabulous》— BLU-SWING** 为例：主驾竖屏显示封面和播放控件，副驾宽屏可以同时显示同一首歌及歌词卡片。两屏共享歌曲、播放进度和暂停状态；各自的页面切换与滚动位置独立。
+
+![《Fabulous》— BLU-SWING：主驾竖屏和副驾宽屏显示同一首歌与同一播放进度](docs/l7/dual-display-fabulous.svg)
+
+上图为布局示意，使用自绘封面占位图。车机上可先打开 **头像侧栏 → 异屏同显 → 启用异屏同显**，将「副屏启动内容」设为「播放页」，再搜索并播放 `Fabulous`（`BLU-SWING`）。[原曲试听（艺人官方频道）](https://www.youtube.com/watch?v=Wmc-YfXOBB4)
+
 ## 车机版功能
 
-- **主副屏共用播放。** 主屏 `1440 × 1920`，副屏 `2880 × 1080`，均按 `160 dpi` 适配。副屏通过 Android `Presentation` 显示，两块屏幕共享同一个播放器，但分别保留页面状态。
+- **两屏适配。** 主屏 `1440 × 1920`、副屏 `2880 × 1080`，均按 `160 dpi` 适配。副屏通过 Android `Presentation` 显示。
 - **横竖屏播放页。** 根据可用空间调整封面尺寸和播放控件布局；宽屏为封面与播放控制、歌词等卡片预留空间。
 - **歌词卡片与推送。** 主副屏可分别设置卡片颜色，未保存过设置时默认深灰。头像侧栏的「歌词推送」可直达 LyricInfo 与 HUD 输出设置，和原歌词设置共用配置。接收端需要支持 LyricInfo。
 - **播放与诊断。** 移植了私人漫游队列修复和大歌单后台补齐队列，削减切页的渲染开销。遇到偶发断音时，可在「诊断与日志」开启记录并手动标记；断音根因仍待确认。
@@ -16,7 +24,7 @@
   <tr><td><img src="docs/l7/lyric-push-portrait.png" width="220" alt="主屏歌词推送设置"></td><td><img src="docs/l7/passenger-lyrics-landscape.png" width="620" alt="副驾歌词卡片默认深灰"></td></tr>
 </table>
 
-截图来自 Android 15 模拟器，两个尺寸在单显示器上分别验证。目标车机为 Android 11 / API 30；**本版实车双屏同步及 HUD 接收尚未验证**。其他车型能否开启副屏取决于系统是否向应用开放可用的副屏。
+上表的设置截图来自 Android 15 模拟器，两个尺寸在单显示器上分别验证。目标车机为 Android 11 / API 30；**本版实车双屏同步及 HUD 接收尚未验证**。其他车型能否开启副屏取决于系统是否向应用开放可用的副屏。
 
 ## 安装
 
