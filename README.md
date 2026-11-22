@@ -8,6 +8,16 @@
 
 以 **《Fabulous》— BLU-SWING** 为例：主驾竖屏显示封面和播放控件，副驾宽屏可以同时显示同一首歌及歌词卡片。两屏共享歌曲、播放进度和暂停状态；各自的页面切换与滚动位置独立。
 
+<table>
+  <tr><th>主屏 · 1440 × 1920</th><th>副屏 · 2880 × 1080</th></tr>
+  <tr>
+    <td><a href="docs/l7/fabulous-main.png"><img src="docs/l7/fabulous-main.png" width="220" alt="Melodia 主屏竖屏播放页：Fabulous，BLU-SWING"></a></td>
+    <td><a href="docs/l7/fabulous-passenger.png"><img src="docs/l7/fabulous-passenger.png" width="620" alt="Melodia 副屏宽屏播放页：Fabulous，BLU-SWING 与歌词卡片"></a></td>
+  </tr>
+</table>
+
+截图来自 NAS 上的 Android 14 模拟器，运行 Melodia For L7 `2026.11.21`。两屏均为 `160 dpi`，在同一次播放会话暂停于 `1:54` 时分别截取；副屏是应用在独立虚拟显示器上的 `Presentation` 窗口。点击图片可查看原图。
+
 车机上可先打开 **头像侧栏 → 异屏同显 → 启用异屏同显**，将「副屏启动内容」设为「播放页」，再搜索并播放 `Fabulous`（`BLU-SWING`）。[原曲试听（艺人官方频道）](https://www.youtube.com/watch?v=Wmc-YfXOBB4)
 
 ## 车机版功能
