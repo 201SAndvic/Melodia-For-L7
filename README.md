@@ -8,9 +8,7 @@
 
 以 **《Fabulous》— BLU-SWING** 为例：主驾竖屏显示封面和播放控件，副驾宽屏可以同时显示同一首歌及歌词卡片。两屏共享歌曲、播放进度和暂停状态；各自的页面切换与滚动位置独立。
 
-![《Fabulous》— BLU-SWING：主驾竖屏和副驾宽屏显示同一首歌与同一播放进度](docs/l7/dual-display-fabulous.svg)
-
-上图为布局示意，使用自绘封面占位图。车机上可先打开 **头像侧栏 → 异屏同显 → 启用异屏同显**，将「副屏启动内容」设为「播放页」，再搜索并播放 `Fabulous`（`BLU-SWING`）。[原曲试听（艺人官方频道）](https://www.youtube.com/watch?v=Wmc-YfXOBB4)
+车机上可先打开 **头像侧栏 → 异屏同显 → 启用异屏同显**，将「副屏启动内容」设为「播放页」，再搜索并播放 `Fabulous`（`BLU-SWING`）。[原曲试听（艺人官方频道）](https://www.youtube.com/watch?v=Wmc-YfXOBB4)
 
 ## 车机版功能
 
